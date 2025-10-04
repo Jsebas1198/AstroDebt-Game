@@ -1,0 +1,18 @@
+# AstroDebt - Nave Varada
+# Dependencias del proyecto para Python 3.13.7
+
+# Motor de juego
+pygame==2.6.1
+
+# Pruebas
+pytest==8.3.4
+pytest-cov==6.0.0
+
+# Utilidades
+dataclasses-json==0.6.7
+
+# Desarrollo
+black==24.10.0
+pylint==3.3.1
+mypy==1.13.0
+

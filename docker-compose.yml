@@ -1,0 +1,74 @@
+version: '3.8'
+
+services:
+  # NOTA IMPORTANTE PARA WINDOWS:
+  # Este servicio NO mostrará la ventana de Pygame en Windows.
+  # Docker en Windows no tiene acceso directo a la GUI.
+  # Para desarrollo del juego, usa: run.bat (local)
+  # Este servicio es útil para: tests, CI/CD, verificar dependencias
+  
+  astrodebt:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: astrodebt-game
+    image: astrodebt:latest
+    
+    # ⚠️ GUI en Docker:
+    # - Windows: NO FUNCIONA (usa run.bat en su lugar)
+    # - Linux: Descomentar las líneas de abajo y ejecutar: xhost +local:docker
+    # - Mac: Requiere XQuartz (complejo)
+    
+    # Para habilitar interfaz gráfica (SOLO LINUX):
+    # environment:
+    #   - DISPLAY=${DISPLAY}
+    # volumes:
+    #   - /tmp/.X11-unix:/tmp/.X11-unix:rw
+    # network_mode: host
+    
+    # Montar código para desarrollo (hot reload)
+    volumes:
+      - .:/app:rw
+    
+    # Modo interactivo
+    stdin_open: true
+    tty: true
+    
+    # Comando por defecto
+    # NOTA: Esto intentará abrir Pygame pero fallará sin GUI
+    command: python main.py
+    
+    # Restart policy
+    restart: "no"
+
+  # Servicio de desarrollo SIN GUI (RECOMENDADO para Windows)
+  # Úsalo para: tests, verificar imports, desarrollo sin GUI
+  # Ejemplos:
+  #   docker-compose run dev bash
+  #   docker-compose run dev pytest
+  #   docker-compose run dev python -c "import pygame; print('OK')"
+  dev:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: astrodebt-dev
+    volumes:
+      - .:/app:rw
+    environment:
+      - PYTHONUNBUFFERED=1
+    command: /bin/bash
+    stdin_open: true
+    tty: true
+    restart: "no"
+    
+  # Servicio solo para tests (útil para CI/CD)
+  test:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: astrodebt-test
+    volumes:
+      - .:/app:rw
+    command: pytest tests/ -v --cov=. --cov-report=term-missing
+    restart: "no"
+

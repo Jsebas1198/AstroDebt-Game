@@ -1,0 +1,119 @@
+# Docker Compose configurado para Windows con VcXsrv
+# Este archivo está preconfigurado para mostrar la GUI en Windows
+# 
+# REQUISITOS:
+#   1. VcXsrv instalado y corriendo
+#   2. Cambiar "TU_IP_AQUI" por tu IP de Windows (usa: ipconfig)
+#
+# USO:
+#   docker-compose -f docker-compose.WINDOWS-GUI.yml up astrodebt
+
+version: '3.8'
+
+services:
+  astrodebt:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: astrodebt-game
+    image: astrodebt:latest
+    
+    # ============================================
+    # CONFIGURACIÓN PARA GUI EN WINDOWS
+    # ============================================
+    # 1. Reemplaza TU_IP_AQUI con tu IP (ejemplo: 192.168.1.100)
+    # 2. Asegúrate de que VcXsrv está corriendo
+    # 3. VcXsrv debe tener "Disable access control" habilitado
+    
+    environment:
+      - DISPLAY=TU_IP_AQUI:0.0  # ← CAMBIA ESTO (ej: 192.168.1.100:0.0)
+      - SDL_VIDEODRIVER=x11
+      - LIBGL_ALWAYS_INDIRECT=1
+      - PYGAME_HIDE_SUPPORT_PROMPT=1
+    
+    volumes:
+      - .:/app:rw
+    
+    stdin_open: true
+    tty: true
+    
+    command: python main.py
+    
+    restart: "no"
+    
+    # Si tienes problemas de red, descomenta esto:
+    # network_mode: bridge
+
+  # Servicio de desarrollo (sin GUI)
+  dev:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: astrodebt-dev
+    volumes:
+      - .:/app:rw
+    environment:
+      - PYTHONUNBUFFERED=1
+    command: /bin/bash
+    stdin_open: true
+    tty: true
+    restart: "no"
+    
+  # Servicio solo para tests
+  test:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: astrodebt-test
+    volumes:
+      - .:/app:rw
+    command: pytest tests/ -v
+    restart: "no"
+
+# ============================================
+# INSTRUCCIONES DE USO:
+# ============================================
+#
+# 1. Instala VcXsrv desde: https://sourceforge.net/projects/vcxsrv/
+# 
+# 2. Ejecuta XLaunch con estas opciones:
+#    - Multiple windows
+#    - Start no client
+#    - ✓ Disable access control (IMPORTANTE!)
+#    - ✓ Native opengl
+#
+# 3. Obtén tu IP de Windows:
+#    CMD: ipconfig
+#    Busca "Dirección IPv4" (ejemplo: 192.168.1.100)
+#
+# 4. Edita este archivo:
+#    Cambia "TU_IP_AQUI:0.0" por "192.168.1.100:0.0"
+#    (usando tu IP real)
+#
+# 5. Construye la imagen:
+#    docker-compose -f docker-compose.WINDOWS-GUI.yml build
+#
+# 6. Ejecuta el juego:
+#    docker-compose -f docker-compose.WINDOWS-GUI.yml up astrodebt
+#
+# ============================================
+# SOLUCIÓN DE PROBLEMAS:
+# ============================================
+#
+# Error "Cannot connect to display":
+#   → Verifica que VcXsrv está corriendo
+#   → Verifica que pusiste tu IP correcta
+#   → Verifica "Disable access control" en VcXsrv
+#
+# Error "Connection refused":
+#   → Permite VcXsrv en el Firewall de Windows
+#   → PowerShell como Admin:
+#     New-NetFirewallRule -DisplayName "VcXsrv" -Direction Inbound `
+#       -Program "C:\Program Files\VcXsrv\vcxsrv.exe" -Action Allow
+#
+# Ventana negra o no responde:
+#   → Marca "Native opengl" en XLaunch
+#   → Verifica LIBGL_ALWAYS_INDIRECT=1 arriba
+#
+# ============================================
+

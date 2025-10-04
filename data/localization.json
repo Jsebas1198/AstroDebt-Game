@@ -1,0 +1,129 @@
+{
+  "es": {
+    "game_title": "AstroDebt - Nave Varada",
+    "ui": {
+      "oxygen": "Oxígeno",
+      "repair_progress": "Progreso de Reparación",
+      "turn": "Turno",
+      "debt": "Deuda",
+      "inventory": "Inventario",
+      "resources": "Recursos",
+      "loans": "Préstamos"
+    },
+    "resources": {
+      "metal": "Metal",
+      "circuits": "Circuitos",
+      "fuel": "Combustible",
+      "rare_minerals": "Minerales Raros",
+      "oxygen_canister": "Tanque de Oxígeno",
+      "scrap": "Chatarra"
+    },
+    "creditors": {
+      "zorvax": "Banco Zorvax",
+      "ktar": "Prestamistas K'tar",
+      "nebula": "Consorcio Nebulosa",
+      "friendly": "Aliado"
+    },
+    "narrative": {
+      "intro": "Tu nave ha sufrido un fallo catastrófico. Varada en un cinturón de asteroides, necesitas recursos para repararla. Los acreedores galácticos están dispuestos a ayudar... por un precio.",
+      "zorvax_greeting": "Banco Zorvax aquí. Vemos que necesitas fondos. Nuestras tasas son razonables... por ahora.",
+      "ktar_greeting": "Los K'tar no pierden el tiempo. Necesitas créditos, los tenemos. Pero NO nos hagas esperar el pago.",
+      "nebula_greeting": "El Consorcio Nebulosa te da la bienvenida. Somos flexibles, generosos incluso. Pero recuerda: todo tiene su precio.",
+      "friendly_greeting": "¿Necesitas ayuda, viejo amigo? Puedo prestarte algo, sin muchas condiciones. Pero solo esta vez.",
+      "victory": "¡Lo lograste! La nave está reparada y lista para despegar. Ahora solo espero que puedas pagar tus deudas...",
+      "game_over_oxygen": "El oxígeno se ha agotado. Tu aventura termina aquí.",
+      "game_over_debt": "Tus acreedores han perdido la paciencia. No hay escapatoria de tus deudas."
+    },
+    "minigames": {
+      "mining": {
+        "title": "Minería de Asteroides",
+        "instructions": "Haz clic en las vetas de mineral en el momento correcto para extraer recursos."
+      },
+      "dodge": {
+        "title": "Esquivar Escombros",
+        "instructions": "Usa las flechas o WASD para esquivar asteroides y recolectar recursos."
+      },
+      "wiring": {
+        "title": "Reparación de Circuitos",
+        "instructions": "Conecta los cables del color correcto a sus puntos correspondientes."
+      },
+      "timing": {
+        "title": "Calibración de Sistemas",
+        "instructions": "Presiona las teclas de dirección en el momento exacto para calibrar los sistemas."
+      }
+    },
+    "notifications": {
+      "low_oxygen": "¡Advertencia! Nivel de oxígeno crítico.",
+      "resource_collected": "Has recolectado {resource} x{amount}",
+      "loan_taken": "Préstamo aceptado: {amount} créditos de {creditor}",
+      "payment_made": "Pago realizado: {amount} créditos a {creditor}",
+      "payment_overdue": "¡Pago vencido! {creditor} está aplicando penalizaciones.",
+      "repair_complete": "{component} ha sido reparado completamente.",
+      "component_critical": "¡{component} en estado crítico!"
+    }
+  },
+  "en": {
+    "game_title": "AstroDebt - Stranded Ship",
+    "ui": {
+      "oxygen": "Oxygen",
+      "repair_progress": "Repair Progress",
+      "turn": "Turn",
+      "debt": "Debt",
+      "inventory": "Inventory",
+      "resources": "Resources",
+      "loans": "Loans"
+    },
+    "resources": {
+      "metal": "Metal",
+      "circuits": "Circuits",
+      "fuel": "Fuel",
+      "rare_minerals": "Rare Minerals",
+      "oxygen_canister": "Oxygen Canister",
+      "scrap": "Scrap"
+    },
+    "creditors": {
+      "zorvax": "Zorvax Bank",
+      "ktar": "K'tar Lenders",
+      "nebula": "Nebula Consortium",
+      "friendly": "Ally"
+    },
+    "narrative": {
+      "intro": "Your ship has suffered a catastrophic failure. Stranded in an asteroid belt, you need resources to repair it. Galactic creditors are willing to help... for a price.",
+      "zorvax_greeting": "Zorvax Bank here. We see you need funds. Our rates are reasonable... for now.",
+      "ktar_greeting": "The K'tar don't waste time. You need credits, we have them. But DON'T make us wait for payment.",
+      "nebula_greeting": "The Nebula Consortium welcomes you. We are flexible, even generous. But remember: everything has its price.",
+      "friendly_greeting": "Need help, old friend? I can lend you something, not many strings attached. But only this once.",
+      "victory": "You did it! The ship is repaired and ready to launch. Now I just hope you can pay your debts...",
+      "game_over_oxygen": "The oxygen has run out. Your adventure ends here.",
+      "game_over_debt": "Your creditors have lost patience. There's no escape from your debts."
+    },
+    "minigames": {
+      "mining": {
+        "title": "Asteroid Mining",
+        "instructions": "Click on the ore veins at the right moment to extract resources."
+      },
+      "dodge": {
+        "title": "Dodge Debris",
+        "instructions": "Use arrows or WASD to dodge asteroids and collect resources."
+      },
+      "wiring": {
+        "title": "Circuit Repair",
+        "instructions": "Connect the wires of the correct color to their corresponding points."
+      },
+      "timing": {
+        "title": "System Calibration",
+        "instructions": "Press the arrow keys at the exact moment to calibrate the systems."
+      }
+    },
+    "notifications": {
+      "low_oxygen": "Warning! Critical oxygen level.",
+      "resource_collected": "You collected {resource} x{amount}",
+      "loan_taken": "Loan accepted: {amount} credits from {creditor}",
+      "payment_made": "Payment made: {amount} credits to {creditor}",
+      "payment_overdue": "Payment overdue! {creditor} is applying penalties.",
+      "repair_complete": "{component} has been fully repaired.",
+      "component_critical": "{component} in critical state!"
+    }
+  }
+}
+

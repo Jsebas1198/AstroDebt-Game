@@ -1,0 +1,150 @@
+{
+  "game": {
+    "title": "AstroDebt - Nave Varada",
+    "version": "0.1.0",
+    "screen_width": 1280,
+    "screen_height": 720,
+    "fps": 60
+  },
+  "gameplay": {
+    "initial_oxygen": 100.0,
+    "oxygen_consumption_per_turn": 5.0,
+    "victory_repair_threshold": 100.0,
+    "max_active_loans": 5
+  },
+  "resources": {
+    "metal": {
+      "max_storage": 100,
+      "value": 1.0,
+      "initial_amount": 10
+    },
+    "circuits": {
+      "max_storage": 50,
+      "value": 2.0,
+      "initial_amount": 5
+    },
+    "fuel": {
+      "max_storage": 75,
+      "value": 1.5,
+      "initial_amount": 0
+    },
+    "rare_minerals": {
+      "max_storage": 30,
+      "value": 5.0,
+      "initial_amount": 0
+    },
+    "oxygen_canister": {
+      "max_storage": 20,
+      "value": 3.0,
+      "initial_amount": 2
+    },
+    "scrap": {
+      "max_storage": 150,
+      "value": 0.5,
+      "initial_amount": 15
+    }
+  },
+  "ship_components": [
+    {
+      "name": "Motor Principal",
+      "status": "damaged",
+      "is_critical": true,
+      "repair_difficulty": 3,
+      "required_resources": {
+        "metal": 30,
+        "circuits": 15,
+        "fuel": 20
+      }
+    },
+    {
+      "name": "Sistema de Navegación",
+      "status": "critical",
+      "is_critical": true,
+      "repair_difficulty": 2,
+      "required_resources": {
+        "circuits": 25,
+        "rare_minerals": 5
+      }
+    },
+    {
+      "name": "Soporte Vital",
+      "status": "functional",
+      "is_critical": true,
+      "repair_difficulty": 2,
+      "required_resources": {
+        "metal": 15,
+        "circuits": 10
+      }
+    },
+    {
+      "name": "Escudo Deflector",
+      "status": "destroyed",
+      "is_critical": false,
+      "repair_difficulty": 4,
+      "required_resources": {
+        "metal": 40,
+        "circuits": 20,
+        "rare_minerals": 10
+      }
+    },
+    {
+      "name": "Sistema de Comunicaciones",
+      "status": "damaged",
+      "is_critical": false,
+      "repair_difficulty": 1,
+      "required_resources": {
+        "circuits": 15,
+        "metal": 10
+      }
+    }
+  ],
+  "creditors": {
+    "zorvax": {
+      "name": "Banco Zorvax",
+      "base_interest_rate": 0.05,
+      "max_loan_amount": 1000,
+      "min_loan_amount": 100,
+      "default_terms": 10
+    },
+    "ktar": {
+      "name": "Prestamistas K'tar",
+      "base_interest_rate": 0.10,
+      "max_loan_amount": 500,
+      "min_loan_amount": 50,
+      "default_terms": 5
+    },
+    "nebula": {
+      "name": "Consorcio Nebulosa",
+      "base_interest_rate": 0.02,
+      "max_loan_amount": 2000,
+      "min_loan_amount": 200,
+      "default_terms": 15
+    },
+    "friendly": {
+      "name": "Aliado",
+      "base_interest_rate": 0.005,
+      "max_loan_amount": 300,
+      "min_loan_amount": 50,
+      "default_terms": 20
+    }
+  },
+  "minigames": {
+    "mining": {
+      "time_limit": 30.0,
+      "difficulty_multipliers": [1.0, 1.3, 1.6, 2.0, 2.5]
+    },
+    "dodge": {
+      "lives": 3,
+      "difficulty_multipliers": [1.0, 1.4, 1.8, 2.3, 3.0]
+    },
+    "wiring": {
+      "time_limit": 60.0,
+      "difficulty_multipliers": [1.0, 1.2, 1.5, 1.8, 2.2]
+    },
+    "timing": {
+      "duration": 30.0,
+      "difficulty_multipliers": [1.0, 1.3, 1.7, 2.1, 2.6]
+    }
+  }
+}
+
