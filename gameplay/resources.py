@@ -1,210 +1,173 @@
 """
 Resources - Sistema de Recolección de Recursos
-Gestiona la recolección, almacenamiento y uso de materiales
+Simplificado para MVP: Un solo tipo de material genérico
+Materiales = Trabajo (concepto educativo)
 """
 
-from enum import Enum, auto
-from typing import Dict, Optional
-from dataclasses import dataclass
+from typing import Dict, Optional, Any
+import logging
 
-
-class ResourceType(Enum):
-    """Tipos de recursos disponibles en el juego"""
-    METAL = auto()
-    CIRCUITS = auto()
-    FUEL = auto()
-    RARE_MINERALS = auto()
-    OXYGEN_CANISTER = auto()
-    SCRAP = auto()
-
-
-@dataclass
-class Resource:
-    """
-    Representa un tipo de recurso
-    
-    Atributos:
-        resource_type: Tipo de recurso
-        quantity: Cantidad disponible
-        max_storage: Capacidad máxima de almacenamiento
-        value: Valor base del recurso (para comercio)
-    """
-    resource_type: ResourceType
-    quantity: int = 0
-    max_storage: int = 100
-    value: float = 1.0
-    
-    def add(self, amount: int) -> int:
-        """
-        Añade recursos respetando el límite de almacenamiento
-        
-        Args:
-            amount: Cantidad a añadir
-            
-        Returns:
-            Cantidad realmente añadida
-        """
-        # TODO: Implementar lógica de añadir con límite
-        pass
-    
-    def consume(self, amount: int) -> bool:
-        """
-        Consume recursos si hay suficientes
-        
-        Args:
-            amount: Cantidad a consumir
-            
-        Returns:
-            True si había suficientes recursos
-        """
-        # TODO: Implementar lógica de consumo
-        pass
-    
-    def is_full(self) -> bool:
-        """Verifica si el almacenamiento está lleno"""
-        # TODO: Comparar quantity con max_storage
-        pass
+logger = logging.getLogger(__name__)
 
 
 class ResourceManager:
     """
-    Gestor centralizado de recursos del juego
+    Gestor simplificado de recursos del juego
+    
+    MVP: Un solo tipo de material genérico
+    - Materiales representan "trabajo" en el concepto educativo
+    - Se obtienen minando (trabajando)
+    - Se usan para reparar la nave y pagar préstamos
     
     Responsabilidades:
-        - Mantener inventario de recursos
         - Gestionar recolección de materiales
-        - Validar y procesar consumo de recursos
-        - Gestionar límites de almacenamiento
-        - Procesar comercio/intercambio de recursos
+        - Validar y procesar consumo de materiales
+        - Sincronizar con GameState
     
     Dependencias:
         - engine.events.EventManager: Para emitir eventos de recursos
         - engine.state.GameState: Para actualizar el estado del juego
-        - gameplay.minigames: Los minijuegos generan recursos
     """
     
     def __init__(self):
         """Inicializa el gestor de recursos"""
-        self.resources: Dict[ResourceType, Resource] = {}
-        self._initialize_resources()
-        
         # Referencias a otros componentes
         self.event_manager = None
         self.game_state = None
-    
-    def _initialize_resources(self) -> None:
-        """Inicializa todos los tipos de recursos"""
-        # TODO: Crear instancias de Resource para cada tipo
-        # TODO: Cargar valores desde configuración
-        pass
-    
-    def collect_resource(self, resource_type: ResourceType, amount: int) -> int:
+        
+        # Configuración de recompensas
+        self.mining_reward_success = 10  # Materiales por minería exitosa
+        self.mining_reward_fail = 2      # Materiales por minería fallida
+        
+        logger.info("ResourceManager inicializado (sistema simplificado)")
+
+
+    def collect_materials(self, amount: int, source: str = "mining") -> int:
         """
-        Recolecta recursos (ej. desde minijuegos)
+        Recolecta materiales genéricos (desde minijuegos)
         
         Args:
-            resource_type: Tipo de recurso a recolectar
             amount: Cantidad recolectada
+            source: Origen de los materiales (mining, scavenging, etc.)
             
         Returns:
-            Cantidad realmente añadida (puede ser menos por límites)
+            Cantidad realmente añadida
         """
-        # TODO: Añadir recurso al inventario
-        # TODO: Emitir evento MATERIAL_COLLECTED
-        # TODO: Actualizar GameState
-        pass
+        if not self.game_state:
+            logger.error("GameState no conectado a ResourceManager")
+            return 0
+        
+        # Añadir materiales al GameState
+        added = self.game_state.add_materials(amount)
+        
+        if added > 0 and self.event_manager:
+            # Emitir evento de materiales ganados
+            from engine.events import EventType
+            self.event_manager.emit_quick(
+                EventType.MATERIALS_GAINED,
+                {"amount": added, "source": source, "total": self.game_state.materials}
+            )
+            
+            # Verificar si hay alerta por materiales bajos
+            if self.game_state.materials < 5:
+                self.event_manager.emit_quick(EventType.ALERT_MATERIALS)
+        
+        return added
     
-    def consume_resource(self, resource_type: ResourceType, amount: int) -> bool:
+    def consume_materials(self, amount: int, purpose: str = "repair") -> bool:
         """
-        Consume recursos (ej. para reparaciones)
+        Consume materiales genéricos
         
         Args:
-            resource_type: Tipo de recurso a consumir
             amount: Cantidad a consumir
+            purpose: Propósito del consumo (repair, loan_payment, etc.)
             
         Returns:
-            True si se pudieron consumir los recursos
+            True si se pudieron consumir los materiales
         """
-        # TODO: Verificar disponibilidad
-        # TODO: Consumir recurso
-        # TODO: Emitir evento MATERIAL_CONSUMED
-        # TODO: Actualizar GameState
-        pass
+        if not self.game_state:
+            logger.error("GameState no conectado a ResourceManager")
+            return False
+        
+        # Intentar consumir del GameState
+        success = self.game_state.consume_materials(amount)
+        
+        if success and self.event_manager:
+            # Emitir evento de materiales consumidos
+            from engine.events import EventType
+            self.event_manager.emit_quick(
+                EventType.MATERIALS_CONSUMED,
+                {"amount": amount, "purpose": purpose, "remaining": self.game_state.materials}
+            )
+        
+        return success
     
-    def has_resources(self, requirements: Dict[ResourceType, int]) -> bool:
+    def has_materials(self, amount: int) -> bool:
         """
-        Verifica si hay suficientes recursos para cumplir requisitos
+        Verifica si hay suficientes materiales
         
         Args:
-            requirements: Diccionario de recursos requeridos
+            amount: Cantidad requerida
             
         Returns:
-            True si hay suficientes de todos los recursos
+            True si hay suficientes materiales
         """
-        # TODO: Verificar cada recurso en requirements
-        pass
+        if not self.game_state:
+            return False
+        return self.game_state.materials >= amount
     
-    def consume_multiple(self, requirements: Dict[ResourceType, int]) -> bool:
+    def get_materials_count(self) -> int:
         """
-        Consume múltiples tipos de recursos
+        Obtiene la cantidad actual de materiales
+        
+        Returns:
+            Cantidad de materiales disponibles
+        """
+        if not self.game_state:
+            return 0
+        return self.game_state.materials
+    
+    def process_mining_result(self, success: bool) -> int:
+        """
+        Procesa el resultado de un minijuego de minería
         
         Args:
-            requirements: Diccionario de recursos a consumir
+            success: Si el minijuego fue exitoso
             
         Returns:
-            True si se pudieron consumir todos
+            Cantidad de materiales obtenidos
         """
-        # TODO: Verificar con has_resources()
-        # TODO: Consumir cada recurso
-        pass
-    
-    def get_resource_count(self, resource_type: ResourceType) -> int:
-        """
-        Obtiene la cantidad de un recurso
+        amount = self.mining_reward_success if success else self.mining_reward_fail
         
-        Args:
-            resource_type: Tipo de recurso
-            
-        Returns:
-            Cantidad disponible
-        """
-        # TODO: Devolver quantity del recurso
-        pass
-    
-    def upgrade_storage(self, resource_type: ResourceType, additional_capacity: int) -> None:
-        """
-        Aumenta la capacidad de almacenamiento de un recurso
+        # Recolectar materiales
+        added = self.collect_materials(amount, "mining")
         
-        Args:
-            resource_type: Tipo de recurso
-            additional_capacity: Capacidad adicional
-        """
-        # TODO: Incrementar max_storage
-        pass
-    
-    def trade_resources(self, give: Dict[ResourceType, int], receive: Dict[ResourceType, int]) -> bool:
-        """
-        Intercambia recursos (para sistema de comercio)
+        # Emitir evento específico del resultado
+        if self.event_manager:
+            from engine.events import EventType
+            event_type = EventType.MATERIALS_GAINED_SUCCESS if success else EventType.MATERIALS_GAINED_FAIL
+            self.event_manager.emit_quick(
+                event_type,
+                {"amount": added, "total": self.game_state.materials if self.game_state else 0}
+            )
         
-        Args:
-            give: Recursos a dar
-            receive: Recursos a recibir
-            
-        Returns:
-            True si el intercambio fue exitoso
-        """
-        # TODO: Verificar que se tienen los recursos a dar
-        # TODO: Consumir recursos a dar
-        # TODO: Añadir recursos a recibir
-        pass
+        logger.info(f"Minería {'exitosa' if success else 'fallida'}: +{added} materiales")
+        return added
     
-    def get_inventory_summary(self) -> Dict[str, any]:
+    def get_summary(self) -> Dict[str, Any]:
         """
-        Obtiene un resumen del inventario
+        Obtiene un resumen del estado de recursos
         
         Returns:
-            Diccionario con información de todos los recursos
+            Diccionario con información de recursos
         """
-        # TODO: Compilar información de todos los recursos
-        pass
+        if not self.game_state:
+            return {"materials": 0, "max_materials": 999}
+        
+        return {
+            "materials": self.game_state.materials,
+            "max_materials": self.game_state.max_materials,
+            "is_low": self.game_state.materials < 5,
+            "is_critical": self.game_state.materials == 0
+        }
 

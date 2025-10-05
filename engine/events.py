@@ -6,30 +6,40 @@ Sistema de señales/observers para comunicación entre componentes del juego
 from typing import Callable, Dict, List, Any, Optional
 from dataclasses import dataclass
 from enum import Enum, auto
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 class EventType(Enum):
     """Tipos de eventos del juego"""
     # Eventos de estado
     OXYGEN_CHANGED = auto()
-    MATERIAL_COLLECTED = auto()
-    MATERIAL_CONSUMED = auto()
+    MATERIALS_GAINED = auto()  # Simplificado para materiales genéricos
+    MATERIALS_CONSUMED = auto()
     REPAIR_PROGRESS_CHANGED = auto()
     
     # Eventos de turnos
     TURN_STARTED = auto()
     TURN_ENDED = auto()
+    ACTION_SELECTED = auto()
     
     # Eventos de préstamos
-    LOAN_TAKEN = auto()
+    LOAN_APPEARED = auto()  # Prestamista aparece
+    LOAN_ACCEPTED = auto()  # Préstamo aceptado
+    LOAN_REJECTED = auto()  # Préstamo rechazado
     LOAN_PAYMENT = auto()
+    LOAN_OVERDUE = auto()  # Pago vencido
     LOAN_DEFAULTED = auto()
-    INTEREST_ACCRUED = auto()
+    PENALTY_APPLIED = auto()
     
     # Eventos de minijuegos
     MINIGAME_STARTED = auto()
     MINIGAME_COMPLETED = auto()
     MINIGAME_FAILED = auto()
+    MATERIALS_GAINED_SUCCESS = auto()
+    MATERIALS_GAINED_FAIL = auto()
+    REPAIR_COMPLETED = auto()
     
     # Eventos de juego
     GAME_OVER = auto()
@@ -39,6 +49,9 @@ class EventType(Enum):
     # Eventos de UI
     DIALOGUE_STARTED = auto()
     DIALOGUE_ENDED = auto()
+    NOTIFICATION_SHOWN = auto()
+    ALERT_OXYGEN = auto()
+    ALERT_MATERIALS = auto()
 
 
 @dataclass
@@ -83,6 +96,10 @@ class EventManager:
         # Historial de eventos (para debugging/replay)
         self.event_history: List[Event] = []
         self.max_history_size = 100
+        
+        # Inicializar listas vacías para cada tipo de evento
+        for event_type in EventType:
+            self.subscribers[event_type] = []
     
     def subscribe(self, event_type: EventType, callback: Callable[[Event], None]) -> None:
         """
@@ -92,8 +109,12 @@ class EventManager:
             event_type: Tipo de evento a escuchar
             callback: Función a llamar cuando ocurra el evento
         """
-        # TODO: Añadir callback a la lista de suscriptores
-        pass
+        if event_type not in self.subscribers:
+            self.subscribers[event_type] = []
+        
+        if callback not in self.subscribers[event_type]:
+            self.subscribers[event_type].append(callback)
+            logger.debug(f"Callback suscrito a {event_type.name}")
     
     def unsubscribe(self, event_type: EventType, callback: Callable) -> None:
         """
@@ -103,8 +124,9 @@ class EventManager:
             event_type: Tipo de evento
             callback: Función a eliminar
         """
-        # TODO: Eliminar callback de la lista de suscriptores
-        pass
+        if event_type in self.subscribers and callback in self.subscribers[event_type]:
+            self.subscribers[event_type].remove(callback)
+            logger.debug(f"Callback desuscrito de {event_type.name}")
     
     def emit(self, event: Event) -> None:
         """
@@ -113,9 +135,20 @@ class EventManager:
         Args:
             event: Evento a emitir
         """
-        # TODO: Llamar a todos los callbacks suscritos
-        # TODO: Añadir al historial
-        pass
+        logger.debug(f"Emitiendo evento: {event.event_type.name} - {event.data}")
+        
+        # Añadir al historial
+        self.event_history.append(event)
+        if len(self.event_history) > self.max_history_size:
+            self.event_history.pop(0)
+        
+        # Llamar a todos los callbacks suscritos
+        if event.event_type in self.subscribers:
+            for callback in self.subscribers[event.event_type]:
+                try:
+                    callback(event)
+                except Exception as e:
+                    logger.error(f"Error en callback para {event.event_type.name}: {e}")
     
     def queue_event(self, event: Event) -> None:
         """
@@ -124,20 +157,19 @@ class EventManager:
         Args:
             event: Evento a encolar
         """
-        # TODO: Añadir evento a event_queue
-        pass
+        self.event_queue.append(event)
+        logger.debug(f"Evento encolado: {event.event_type.name}")
     
     def process_queue(self) -> None:
         """Procesa todos los eventos en la cola"""
-        # TODO: Iterar sobre event_queue
-        # TODO: Emitir cada evento con emit()
-        # TODO: Limpiar la cola
-        pass
+        while self.event_queue:
+            event = self.event_queue.pop(0)
+            self.emit(event)
     
     def clear_history(self) -> None:
         """Limpia el historial de eventos"""
-        # TODO: Vaciar event_history
-        pass
+        self.event_history.clear()
+        logger.debug("Historial de eventos limpiado")
     
     def get_history(self, event_type: Optional[EventType] = None) -> List[Event]:
         """
@@ -149,6 +181,20 @@ class EventManager:
         Returns:
             Lista de eventos del historial
         """
-        # TODO: Devolver historial filtrado o completo
-        pass
+        if event_type is None:
+            return self.event_history.copy()
+        else:
+            return [e for e in self.event_history if e.event_type == event_type]
+    
+    def emit_quick(self, event_type: EventType, data: Dict[str, Any] = None, source: str = None) -> None:
+        """
+        Método de conveniencia para emitir eventos rápidamente
+        
+        Args:
+            event_type: Tipo de evento
+            data: Datos del evento
+            source: Origen del evento
+        """
+        event = Event(event_type, data or {}, source)
+        self.emit(event)
 

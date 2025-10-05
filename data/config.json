@@ -8,9 +8,11 @@
   },
   "gameplay": {
     "initial_oxygen": 100.0,
-    "oxygen_consumption_per_turn": 5.0,
+    "oxygen_consumption_per_turn": 2.0,
     "victory_repair_threshold": 100.0,
-    "max_active_loans": 5
+    "max_active_loans": 3,
+    "oxygen_cost_mining": 2.0,
+    "oxygen_cost_repair": 3.0
   },
   "resources": {
     "metal": {

@@ -1,11 +1,15 @@
 """
 Narrator - Sistema de Narrativa y Diálogos
-Gestiona la presentación de texto narrativo y diálogos con personajes
+Simplificado para MVP: Mensajes educativos y guía del jugador
 """
 
 import pygame
-from typing import List, Dict, Optional, Callable
+import os
+from typing import List, Dict, Optional, Callable, Any
 from enum import Enum, auto
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 class DialogueType(Enum):
@@ -68,8 +72,13 @@ class Narrator:
             screen: Superficie de Pygame donde renderizar
         """
         self.screen = screen
+        self.screen_width = screen.get_width()
+        self.screen_height = screen.get_height()
+        
+        # Fuentes
         self.font = None
         self.speaker_font = None
+        self.small_font = None
         
         # Estado del diálogo
         self.current_dialogue: Optional[DialogueNode] = None
@@ -79,18 +88,40 @@ class Narrator:
         self.time_since_last_char = 0.0
         
         # UI del diálogo
-        self.dialogue_box_rect = pygame.Rect(50, 500, 1180, 170)
-        self.dialogue_alpha = 0
+        self.dialogue_box_rect = pygame.Rect(50, self.screen_height - 200, self.screen_width - 100, 150)
+        self.dialogue_alpha = 255
         self.is_fading = False
+        
+        # Assets
+        self.helper_image = None
         
         # Referencias
         self.event_manager = None
     
     def initialize(self) -> None:
         """Inicializa fuentes y recursos"""
-        # TODO: Cargar fuentes
-        # TODO: Preparar sprites de cuadros de diálogo
-        pass
+        # Cargar fuentes
+        try:
+            self.speaker_font = pygame.font.Font(None, 28)
+            self.font = pygame.font.Font(None, 22)
+            self.small_font = pygame.font.Font(None, 18)
+        except Exception as e:
+            logger.error(f"Error cargando fuentes: {e}")
+            self.speaker_font = pygame.font.SysFont('Arial', 28)
+            self.font = pygame.font.SysFont('Arial', 22)
+            self.small_font = pygame.font.SysFont('Arial', 18)
+        
+        # Cargar imagen del helper
+        helper_path = os.path.join('data', 'assets', 'npc_helper.png')
+        try:
+            if os.path.exists(helper_path):
+                self.helper_image = pygame.image.load(helper_path).convert_alpha()
+                self.helper_image = pygame.transform.scale(self.helper_image, (80, 100))
+                logger.debug("Helper image cargada")
+        except Exception as e:
+            logger.warning(f"No se pudo cargar helper image: {e}")
+        
+        logger.info("Narrator inicializado")
     
     def show_dialogue(self, dialogue: DialogueNode) -> None:
         """
@@ -99,11 +130,17 @@ class Narrator:
         Args:
             dialogue: Nodo de diálogo a mostrar
         """
-        # TODO: Establecer current_dialogue
-        # TODO: Resetear caracteres mostrados
-        # TODO: Establecer is_active = True
-        # TODO: Emitir evento DIALOGUE_STARTED
-        pass
+        self.current_dialogue = dialogue
+        self.current_dialogue.current_char = 0
+        self.is_active = True
+        self.time_since_last_char = 0.0
+        
+        # Emitir evento
+        if self.event_manager:
+            from engine.events import EventType
+            self.event_manager.emit_quick(EventType.DIALOGUE_STARTED, {'speaker': dialogue.speaker})
+        
+        logger.debug(f"Mostrando diálogo: {dialogue.text[:50]}...")
     
     def queue_dialogue(self, dialogue: DialogueNode) -> None:
         """
@@ -112,45 +149,64 @@ class Narrator:
         Args:
             dialogue: Nodo de diálogo a encolar
         """
-        # TODO: Añadir a dialogue_queue
-        pass
+        self.dialogue_queue.append(dialogue)
+        
+        # Si no hay diálogo activo, mostrar el siguiente
+        if not self.is_active and self.dialogue_queue:
+            self.show_dialogue(self.dialogue_queue.pop(0))
     
     def show_narrative(self, text: str) -> None:
         """
-        Muestra texto narrativo
+        Muestra texto narrativo educativo
         
         Args:
             text: Texto narrativo a mostrar
         """
-        # TODO: Crear DialogueNode de tipo NARRATIVE
-        # TODO: Llamar a show_dialogue()
-        pass
+        dialogue = DialogueNode(
+            text=text,
+            speaker="Guía",
+            dialogue_type=DialogueType.NARRATIVE
+        )
+        self.show_dialogue(dialogue)
     
     def show_character_dialogue(self, speaker: str, text: str) -> None:
         """
-        Muestra diálogo de un personaje
+        Muestra diálogo de un personaje (prestamista)
         
         Args:
             speaker: Nombre del personaje
             text: Texto del diálogo
         """
-        # TODO: Crear DialogueNode de tipo CHARACTER
-        # TODO: Llamar a show_dialogue()
-        pass
+        dialogue = DialogueNode(
+            text=text,
+            speaker=speaker,
+            dialogue_type=DialogueType.CHARACTER
+        )
+        self.show_dialogue(dialogue)
     
-    def show_choice(self, text: str, choices: List[str], on_choice: Callable) -> None:
+    def show_loan_offer(self, creditor: str, amount: float, materials_to_pay: int) -> None:
         """
-        Muestra un diálogo con opciones
+        Muestra una oferta de préstamo educativa
         
         Args:
-            text: Texto del diálogo
-            choices: Lista de opciones
-            on_choice: Callback con la opción elegida
+            creditor: Nombre del prestamista
+            amount: Cantidad de oxígeno ofrecido
+            materials_to_pay: Materiales a devolver
         """
-        # TODO: Crear DialogueNode de tipo CHOICE
-        # TODO: Configurar on_complete para manejar elección
-        # TODO: Llamar a show_dialogue()
-        pass
+        text = (
+            f"{creditor} te ofrece {amount:.0f} de oxígeno. "
+            f"Deberás devolver {materials_to_pay} materiales. "
+            f"Recuerda: El oxígeno es tu moneda, los materiales representan tu trabajo. "
+            f"[A] Aceptar  [R] Rechazar"
+        )
+        
+        dialogue = DialogueNode(
+            text=text,
+            speaker=creditor,
+            dialogue_type=DialogueType.CHOICE,
+            choices=["Aceptar préstamo", "Rechazar préstamo"]
+        )
+        self.show_dialogue(dialogue)
     
     def update(self, delta_time: float) -> None:
         """
@@ -159,20 +215,91 @@ class Narrator:
         Args:
             delta_time: Tiempo transcurrido
         """
-        # TODO: Actualizar efecto de escritura
-        # TODO: Revelar más caracteres según text_speed
-        # TODO: Procesar cola de diálogos
-        # TODO: Actualizar animaciones de fade
-        pass
+        if not self.is_active or not self.current_dialogue:
+            return
+        
+        # Actualizar efecto de escritura
+        if not self.current_dialogue.is_complete:
+            self.time_since_last_char += delta_time
+            
+            # Calcular cuántos caracteres revelar
+            chars_to_reveal = int(self.time_since_last_char * self.text_speed)
+            if chars_to_reveal > 0:
+                self.current_dialogue.current_char = min(
+                    self.current_dialogue.current_char + chars_to_reveal,
+                    len(self.current_dialogue.text)
+                )
+                self.time_since_last_char = 0.0
+                
+                # Verificar si se completó el texto
+                if self.current_dialogue.current_char >= len(self.current_dialogue.text):
+                    self.current_dialogue.is_complete = True
     
     def render(self) -> None:
         """Renderiza el diálogo actual"""
-        # TODO: Dibujar cuadro de diálogo con transparencia
-        # TODO: Renderizar nombre del hablante (si aplica)
-        # TODO: Renderizar texto con efecto de escritura
-        # TODO: Renderizar opciones (si es CHOICE)
-        # TODO: Renderizar indicador de continuar
-        pass
+        if not self.is_active or not self.current_dialogue:
+            return
+        
+        # Dibujar cuadro de diálogo
+        dialogue_surface = pygame.Surface((self.dialogue_box_rect.width, self.dialogue_box_rect.height))
+        dialogue_surface.set_alpha(self.dialogue_alpha)
+        dialogue_surface.fill((20, 20, 40))
+        
+        # Borde del cuadro
+        pygame.draw.rect(dialogue_surface, (100, 100, 200), dialogue_surface.get_rect(), 3)
+        
+        self.screen.blit(dialogue_surface, self.dialogue_box_rect)
+        
+        # Renderizar helper image si está disponible
+        if self.helper_image and self.current_dialogue.dialogue_type == DialogueType.NARRATIVE:
+            helper_rect = self.helper_image.get_rect()
+            helper_rect.bottomleft = (self.dialogue_box_rect.left - 90, self.dialogue_box_rect.bottom)
+            self.screen.blit(self.helper_image, helper_rect)
+        
+        # Renderizar nombre del hablante
+        if self.current_dialogue.speaker:
+            speaker_surface = self.speaker_font.render(
+                self.current_dialogue.speaker,
+                True,
+                (255, 200, 100)
+            )
+            speaker_rect = speaker_surface.get_rect()
+            speaker_rect.topleft = (self.dialogue_box_rect.left + 20, self.dialogue_box_rect.top + 10)
+            self.screen.blit(speaker_surface, speaker_rect)
+        
+        # Renderizar texto con efecto de escritura
+        visible_text = self.current_dialogue.text[:self.current_dialogue.current_char]
+        
+        # Dividir texto en líneas
+        lines = self._wrap_text(visible_text, self.dialogue_box_rect.width - 40)
+        
+        y_offset = 45 if self.current_dialogue.speaker else 20
+        for line in lines[:4]:  # Máximo 4 líneas
+            text_surface = self.font.render(line, True, (255, 255, 255))
+            text_rect = text_surface.get_rect()
+            text_rect.topleft = (self.dialogue_box_rect.left + 20, self.dialogue_box_rect.top + y_offset)
+            self.screen.blit(text_surface, text_rect)
+            y_offset += 25
+        
+        # Renderizar opciones si es CHOICE
+        if self.current_dialogue.dialogue_type == DialogueType.CHOICE and self.current_dialogue.is_complete:
+            if self.current_dialogue.choices:
+                choice_y = self.dialogue_box_rect.bottom - 30
+                for i, choice in enumerate(self.current_dialogue.choices[:2]):
+                    choice_text = f"[{i+1}] {choice}"
+                    choice_surface = self.small_font.render(choice_text, True, (255, 255, 100))
+                    choice_rect = choice_surface.get_rect()
+                    choice_rect.left = self.dialogue_box_rect.left + 20 + (i * 200)
+                    choice_rect.centery = choice_y
+                    self.screen.blit(choice_surface, choice_rect)
+        
+        # Indicador de continuar
+        if self.current_dialogue.is_complete and self.current_dialogue.dialogue_type != DialogueType.CHOICE:
+            continue_text = "[ESPACIO] Continuar"
+            continue_surface = self.small_font.render(continue_text, True, (200, 200, 200))
+            continue_rect = continue_surface.get_rect()
+            continue_rect.bottomright = (self.dialogue_box_rect.right - 20, self.dialogue_box_rect.bottom - 10)
+            self.screen.blit(continue_surface, continue_rect)
     
     def handle_input(self, event: pygame.event.Event) -> None:
         """
@@ -181,35 +308,84 @@ class Narrator:
         Args:
             event: Evento de Pygame
         """
-        # TODO: Detectar Enter/Space para avanzar diálogo
-        # TODO: Detectar clic del mouse
-        # TODO: Procesar selección de opciones
-        pass
+        if not self.is_active or not self.current_dialogue:
+            return
+        
+        if event.type == pygame.KEYDOWN:
+            if event.key in [pygame.K_SPACE, pygame.K_RETURN]:
+                if self.current_dialogue.dialogue_type != DialogueType.CHOICE:
+                    self.advance_dialogue()
+            
+            # Manejar opciones de préstamo
+            elif self.current_dialogue.dialogue_type == DialogueType.CHOICE:
+                if event.key == pygame.K_a or event.key == pygame.K_1:
+                    # Aceptar préstamo
+                    if self.current_dialogue.on_complete:
+                        self.current_dialogue.on_complete(0)
+                    self.close_dialogue()
+                elif event.key == pygame.K_r or event.key == pygame.K_2:
+                    # Rechazar préstamo
+                    if self.current_dialogue.on_complete:
+                        self.current_dialogue.on_complete(1)
+                    self.close_dialogue()
+            
+            # Saltar texto
+            elif event.key == pygame.K_ESCAPE:
+                if not self.current_dialogue.is_complete:
+                    self.current_dialogue.current_char = len(self.current_dialogue.text)
+                    self.current_dialogue.is_complete = True
+                else:
+                    self.skip_dialogue()
+        
+        elif event.type == pygame.MOUSEBUTTONDOWN:
+            if event.button == 1:  # Click izquierdo
+                if not self.current_dialogue.is_complete:
+                    # Completar texto instantáneamente
+                    self.current_dialogue.current_char = len(self.current_dialogue.text)
+                    self.current_dialogue.is_complete = True
+                else:
+                    self.advance_dialogue()
     
     def advance_dialogue(self) -> None:
         """Avanza al siguiente diálogo o completa el actual"""
-        # TODO: Si el texto no está completamente revelado, revelarlo todo
-        # TODO: Si está completo, marcar como terminado
-        # TODO: Llamar on_complete si existe
-        # TODO: Procesar siguiente diálogo de la cola
-        # TODO: Emitir evento DIALOGUE_ENDED si no hay más
-        pass
+        if not self.current_dialogue:
+            return
+        
+        if not self.current_dialogue.is_complete:
+            # Revelar todo el texto
+            self.current_dialogue.current_char = len(self.current_dialogue.text)
+            self.current_dialogue.is_complete = True
+        else:
+            # Llamar callback si existe
+            if self.current_dialogue.on_complete:
+                self.current_dialogue.on_complete()
+            
+            # Procesar siguiente diálogo de la cola
+            if self.dialogue_queue:
+                self.show_dialogue(self.dialogue_queue.pop(0))
+            else:
+                self.close_dialogue()
     
     def skip_dialogue(self) -> None:
         """Salta el diálogo actual completamente"""
-        # TODO: Vaciar dialogue_queue
-        # TODO: Completar current_dialogue
-        # TODO: Establecer is_active = False
-        pass
+        self.dialogue_queue.clear()
+        if self.current_dialogue and self.current_dialogue.on_complete:
+            self.current_dialogue.on_complete()
+        self.close_dialogue()
     
     def close_dialogue(self) -> None:
         """Cierra el diálogo actual"""
-        # TODO: Fade out del cuadro de diálogo
-        # TODO: Establecer is_active = False
-        # TODO: Limpiar current_dialogue
-        pass
+        self.is_active = False
+        self.current_dialogue = None
+        
+        # Emitir evento
+        if self.event_manager:
+            from engine.events import EventType
+            self.event_manager.emit_quick(EventType.DIALOGUE_ENDED)
+        
+        logger.debug("Diálogo cerrado")
     
-    def get_wrapped_text(self, text: str, max_width: int) -> List[str]:
+    def _wrap_text(self, text: str, max_width: int) -> List[str]:
         """
         Divide el texto en líneas según el ancho máximo
         
@@ -220,6 +396,60 @@ class Narrator:
         Returns:
             Lista de líneas de texto
         """
-        # TODO: Implementar word wrapping
-        pass
+        if not self.font:
+            return [text]
+        
+        words = text.split(' ')
+        lines = []
+        current_line = ""
+        
+        for word in words:
+            test_line = current_line + (" " if current_line else "") + word
+            text_width = self.font.size(test_line)[0]
+            
+            if text_width <= max_width:
+                current_line = test_line
+            else:
+                if current_line:
+                    lines.append(current_line)
+                current_line = word
+        
+        if current_line:
+            lines.append(current_line)
+        
+        return lines
+    
+    def show_educational_tip(self, tip_type: str) -> None:
+        """
+        Muestra un consejo educativo según el contexto
+        
+        Args:
+            tip_type: Tipo de consejo (oxygen_low, debt_high, etc.)
+        """
+        tips = {
+            'oxygen_low': (
+                "Tu oxígeno está bajo. Considera tomar un préstamo, "
+                "pero recuerda: deberás devolver materiales (trabajo) para pagarlo."
+            ),
+            'debt_high': (
+                "Tu deuda es alta. Prioriza minar materiales para pagar "
+                "antes de que venzan los plazos."
+            ),
+            'materials_low': (
+                "Tienes pocos materiales. Mina más antes de intentar "
+                "reparaciones costosas."
+            ),
+            'repair_progress': (
+                "Cada reparación exitosa te acerca a la victoria. "
+                "Balancea tus recursos entre reparar y pagar deudas."
+            ),
+            'loan_offer': (
+                "Un prestamista apareció. Evalúa si realmente necesitas "
+                "el oxígeno y si podrás pagar los materiales a tiempo."
+            )
+        }
+        
+        tip = tips.get(tip_type)
+        if tip:
+            self.show_narrative(tip)
 

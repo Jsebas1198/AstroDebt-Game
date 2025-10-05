@@ -4,7 +4,13 @@ Gestiona el renderizado de todos los elementos visuales del juego
 """
 
 import pygame
-from typing import Optional
+import os
+import math
+import random
+from typing import Optional, Dict, List, Tuple
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 class Renderer:
@@ -43,98 +49,391 @@ class Renderer:
         # Estado visual
         self.camera_offset = [0, 0]
         self.shake_intensity = 0.0
+        self.shake_duration = 0.0
+        
+        # Assets del juego
+        self.assets: Dict[str, pygame.Surface] = {}
+        
+        # Estrellas de fondo
+        self.stars: List[Tuple[int, int, int]] = []
+        
+        # Animaciones
+        self.ship_animation_time = 0.0
+        self.intro_animation_time = 0.0
+        self.intro_complete = False
         
         # Referencias
         self.game_state = None
     
-    def initialize(self) -> None:
-        """Inicializa Pygame y crea la pantalla"""
-        # TODO: pygame.init()
-        # TODO: Crear pantalla con pygame.display.set_mode()
-        # TODO: Establecer título de ventana
-        # TODO: Inicializar capas
-        pass
+    def initialize(self, screen: pygame.Surface) -> None:
+        """Inicializa el renderer con la pantalla
+        
+        Args:
+            screen: Superficie de Pygame para renderizar
+        """
+        self.screen = screen
+        
+        # Crear capas
+        self.background_layer = pygame.Surface((self.screen_width, self.screen_height))
+        self.game_layer = pygame.Surface((self.screen_width, self.screen_height), pygame.SRCALPHA)
+        self.ui_layer = pygame.Surface((self.screen_width, self.screen_height), pygame.SRCALPHA)
+        self.effect_layer = pygame.Surface((self.screen_width, self.screen_height), pygame.SRCALPHA)
+        
+        # Cargar assets
+        self._load_assets()
+        
+        # Generar estrellas de fondo
+        self._generate_stars()
+        
+        logger.info("Renderer inicializado")
     
     def render_frame(self) -> None:
-        """Renderiza un frame completo del juego"""
-        # TODO: Limpiar pantalla
-        # TODO: Renderizar capa de fondo
-        # TODO: Renderizar capa de juego
-        # TODO: Renderizar capa de efectos
-        # TODO: Aplicar efectos de cámara (shake, etc.)
-        pass
+        """Renderiza un frame completo del juego principal"""
+        if not self.screen:
+            return
+        
+        # Limpiar capas
+        self.game_layer.fill((0, 0, 0, 0))
+        self.effect_layer.fill((0, 0, 0, 0))
+        
+        # Renderizar fondo
+        self.render_background()
+        
+        # Renderizar elementos del juego
+        self.render_ship()
+        self.render_environment()
+        
+        # Renderizar efectos
+        self.render_effects()
+        
+        # Aplicar shake si está activo
+        offset_x, offset_y = 0, 0
+        if self.shake_intensity > 0:
+            offset_x = random.randint(-int(self.shake_intensity * 10), int(self.shake_intensity * 10))
+            offset_y = random.randint(-int(self.shake_intensity * 10), int(self.shake_intensity * 10))
+        
+        # Componer capas en pantalla
+        self.screen.blit(self.background_layer, (offset_x, offset_y))
+        self.screen.blit(self.game_layer, (offset_x, offset_y))
+        self.screen.blit(self.effect_layer, (0, 0))
+        self.screen.blit(self.ui_layer, (0, 0))
     
     def render_background(self) -> None:
-        """Renderiza el fondo (espacio, estrellas, planeta)"""
-        # TODO: Dibujar fondo espacial
-        # TODO: Dibujar estrellas animadas
-        # TODO: Dibujar planeta lejano
-        pass
+        """Renderiza el fondo espacial con estrellas"""
+        # Usar asset de fondo si está disponible
+        if 'space_background' in self.assets:
+            bg = self.assets['space_background']
+            # Escalar para cubrir toda la pantalla
+            bg_scaled = pygame.transform.scale(bg, (self.screen_width, self.screen_height))
+            self.background_layer.blit(bg_scaled, (0, 0))
+        else:
+            # Fondo degradado de negro a azul oscuro
+            for y in range(self.screen_height):
+                color_value = int(20 * (1 - y / self.screen_height))
+                color = (0, 0, color_value)
+                pygame.draw.line(self.background_layer, color, (0, y), (self.screen_width, y))
+        
+        # Dibujar estrellas
+        for star in self.stars:
+            x, y, size = star
+            brightness = random.randint(150, 255)
+            pygame.draw.circle(self.background_layer, (brightness, brightness, brightness), (x, y), size)
     
     def render_ship(self) -> None:
         """Renderiza la nave espacial del jugador"""
-        # TODO: Dibujar nave según estado de reparación
-        # TODO: Dibujar efectos de daño
-        # TODO: Dibujar indicadores de componentes
-        pass
+        if 'blue_spaceship' not in self.assets:
+            return
+        
+        ship = self.assets['blue_spaceship']
+        
+        # Posición de la nave
+        ship_x = self.screen_width // 2 - 200
+        ship_y = self.screen_height // 2
+        
+        # Aplicar efecto de daño según el progreso de reparación
+        if self.game_state:
+            repair_percent = self.game_state.repair_progress / 100.0
+            
+            # Tinte rojo para nave dañada
+            if repair_percent < 0.5:
+                ship_copy = ship.copy()
+                # Aplicar tinte rojo
+                red_overlay = pygame.Surface(ship.get_size())
+                red_overlay.fill((255, 0, 0))
+                red_overlay.set_alpha(int(100 * (1 - repair_percent * 2)))
+                ship_copy.blit(red_overlay, (0, 0))
+                ship = ship_copy
+            
+            # Animación de flotación
+            self.ship_animation_time += 0.02
+            float_offset = math.sin(self.ship_animation_time) * 5
+            ship_y += int(float_offset)
+        
+        # Dibujar nave
+        ship_rect = ship.get_rect()
+        ship_rect.center = (ship_x, ship_y)
+        self.game_layer.blit(ship, ship_rect)
+        
+        # Dibujar jugador cerca de la nave
+        if 'player' in self.assets:
+            player = self.assets['player']
+            player_rect = player.get_rect()
+            player_rect.center = (ship_x + 100, ship_y + 50)
+            self.game_layer.blit(player, player_rect)
     
     def render_environment(self) -> None:
-        """Renderiza elementos del entorno"""
-        # TODO: Dibujar asteroides
-        # TODO: Dibujar recursos disponibles
-        # TODO: Dibujar puntos de interés
-        pass
+        """Renderiza el terreno lunar y elementos del entorno"""
+        # Dibujar superficie lunar
+        if 'landing_moon' in self.assets:
+            moon = self.assets['landing_moon']
+            moon_rect = moon.get_rect()
+            moon_rect.bottom = self.screen_height - 50
+            moon_rect.centerx = self.screen_width // 2 - 100
+            self.game_layer.blit(moon, moon_rect)
+        
+        # Dibujar minerales decorativos (solo visual)
+        mineral_assets = ['copper_mineral', 'silver_mineral', 'gold_mineral']
+        positions = [(200, self.screen_height - 100), 
+                    (400, self.screen_height - 120),
+                    (600, self.screen_height - 90)]
+        
+        for i, mineral_name in enumerate(mineral_assets):
+            if mineral_name in self.assets and i < len(positions):
+                mineral = self.assets[mineral_name]
+                mineral_scaled = pygame.transform.scale(mineral, (30, 30))
+                pos = positions[i]
+                self.game_layer.blit(mineral_scaled, pos)
     
     def render_effects(self) -> None:
-        """Renderiza efectos visuales (partículas, explosiones, etc.)"""
-        # TODO: Dibujar sistema de partículas
-        # TODO: Dibujar animaciones activas
-        pass
+        """Renderiza efectos visuales"""
+        # Efecto de partículas si el oxígeno es bajo
+        if self.game_state and self.game_state.oxygen < 20:
+            # Efecto de alerta visual
+            alert_surface = pygame.Surface((self.screen_width, self.screen_height), pygame.SRCALPHA)
+            alert_surface.fill((255, 0, 0, 20))  # Tinte rojo semi-transparente
+            self.effect_layer.blit(alert_surface, (0, 0))
+            
+            # Parpadeo de borde
+            if int(pygame.time.get_ticks() / 500) % 2 == 0:
+                pygame.draw.rect(self.effect_layer, (255, 0, 0), 
+                               (0, 0, self.screen_width, self.screen_height), 3)
     
-    def apply_screen_shake(self, intensity: float) -> None:
+    def render_intro(self) -> None:
+        """Renderiza la pantalla de introducción con animación"""
+        if not self.screen:
+            return
+        
+        # Fondo
+        self.render_background()
+        
+        # Título del juego
+        title_font = pygame.font.Font(None, 72)
+        subtitle_font = pygame.font.Font(None, 36)
+        
+        title = "NAVE VARADA"
+        subtitle = "Un juego educativo sobre gestión de recursos"
+        
+        title_surface = title_font.render(title, True, (255, 255, 255))
+        subtitle_surface = subtitle_font.render(subtitle, True, (200, 200, 200))
+        
+        title_rect = title_surface.get_rect()
+        title_rect.centerx = self.screen_width // 2
+        title_rect.centery = 200
+        
+        subtitle_rect = subtitle_surface.get_rect()
+        subtitle_rect.centerx = self.screen_width // 2
+        subtitle_rect.centery = 260
+        
+        self.screen.blit(title_surface, title_rect)
+        self.screen.blit(subtitle_surface, subtitle_rect)
+        
+        # Animación de crash (si no se ha completado)
+        if not self.intro_complete:
+            self.intro_animation_time += 0.02
+            
+            if 'blue_spaceship' in self.assets:
+                ship = self.assets['blue_spaceship']
+                
+                # Calcular posición de la nave cayendo
+                ship_x = self.screen_width // 2
+                ship_y = int(100 + self.intro_animation_time * 50)
+                
+                if ship_y < self.screen_height - 200:
+                    # Nave cayendo
+                    ship_rotated = pygame.transform.rotate(ship, self.intro_animation_time * 10)
+                    ship_rect = ship_rotated.get_rect()
+                    ship_rect.center = (ship_x, ship_y)
+                    self.screen.blit(ship_rotated, ship_rect)
+                else:
+                    # Nave estrellada
+                    self.intro_complete = True
+                    ship_rect = ship.get_rect()
+                    ship_rect.center = (ship_x, self.screen_height - 200)
+                    self.screen.blit(ship, ship_rect)
+                    
+                    # Aplicar shake al estrellarse
+                    self.apply_screen_shake(0.5, 0.5)
+        
+        # Botón de inicio
+        if 'start_button' in self.assets and self.intro_complete:
+            button = self.assets['start_button']
+            button_rect = button.get_rect()
+            button_rect.center = (self.screen_width // 2, 400)
+            self.screen.blit(button, button_rect)
+        else:
+            # Botón de texto si no hay asset
+            button_font = pygame.font.Font(None, 36)
+            button_text = "[ESPACIO] Comenzar" if self.intro_complete else "Cargando..."
+            button_surface = button_font.render(button_text, True, (255, 255, 100))
+            button_rect = button_surface.get_rect()
+            button_rect.center = (self.screen_width // 2, 400)
+            self.screen.blit(button_surface, button_rect)
+    
+    def render_end_screen(self) -> None:
+        """Renderiza la pantalla final (victoria o derrota)"""
+        if not self.screen or not self.game_state:
+            return
+        
+        # Fondo oscuro
+        self.screen.fill((10, 10, 20))
+        
+        title_font = pygame.font.Font(None, 72)
+        text_font = pygame.font.Font(None, 36)
+        small_font = pygame.font.Font(None, 24)
+        
+        if self.game_state.victory:
+            # Pantalla de victoria
+            title = "¡VICTORIA!"
+            title_color = (100, 255, 100)
+            
+            messages = [
+                "Has reparado tu nave exitosamente.",
+                f"Turnos jugados: {self.game_state.turn_number}",
+                f"Materiales restantes: {self.game_state.materials}",
+                f"Oxígeno restante: {self.game_state.oxygen:.0f}",
+                "",
+                "Moraleja: La gestión responsable de recursos",
+                "y préstamos es clave para el éxito."
+            ]
+        else:
+            # Pantalla de game over
+            title = "GAME OVER"
+            title_color = (255, 100, 100)
+            
+            reason_text = {
+                "oxygen_depleted": "Te quedaste sin oxígeno.",
+                "debt_overwhelming": "Las deudas te abrumaron.",
+                "unknown": "No pudiste completar la misión."
+            }
+            
+            reason = reason_text.get(self.game_state.game_over_reason, reason_text["unknown"])
+            
+            messages = [
+                reason,
+                f"Sobreviviste {self.game_state.turn_number} turnos.",
+                f"Progreso de reparación: {self.game_state.repair_progress:.0f}%",
+                "",
+                "Moraleja: Los préstamos pueden ayudar,",
+                "pero deben manejarse con cuidado."
+            ]
+        
+        # Renderizar título
+        title_surface = title_font.render(title, True, title_color)
+        title_rect = title_surface.get_rect()
+        title_rect.centerx = self.screen_width // 2
+        title_rect.centery = 150
+        self.screen.blit(title_surface, title_rect)
+        
+        # Renderizar mensajes
+        y = 250
+        for message in messages:
+            if message:  # Skip empty lines
+                msg_surface = text_font.render(message, True, (255, 255, 255))
+                msg_rect = msg_surface.get_rect()
+                msg_rect.centerx = self.screen_width // 2
+                msg_rect.centery = y
+                self.screen.blit(msg_surface, msg_rect)
+            y += 40
+        
+        # Opción de reiniciar
+        restart_text = "[ESPACIO] Jugar de nuevo    [ESC] Salir"
+        restart_surface = small_font.render(restart_text, True, (255, 255, 100))
+        restart_rect = restart_surface.get_rect()
+        restart_rect.centerx = self.screen_width // 2
+        restart_rect.bottom = self.screen_height - 50
+        self.screen.blit(restart_surface, restart_rect)
+    
+    def apply_screen_shake(self, intensity: float, duration: float) -> None:
         """
         Aplica efecto de vibración de pantalla
         
         Args:
             intensity: Intensidad del shake (0.0 - 1.0)
+            duration: Duración en segundos
         """
-        # TODO: Establecer shake_intensity
-        # TODO: Calcular offset aleatorio
-        pass
+        self.shake_intensity = intensity
+        self.shake_duration = duration
     
-    def fade_to_black(self, duration: float) -> None:
+    def update(self, delta_time: float) -> None:
         """
-        Crea un fade out a negro
+        Actualiza animaciones y efectos
         
         Args:
-            duration: Duración del fade en segundos
+            delta_time: Tiempo transcurrido
         """
-        # TODO: Implementar animación de fade
-        pass
+        # Actualizar shake
+        if self.shake_duration > 0:
+            self.shake_duration -= delta_time
+            if self.shake_duration <= 0:
+                self.shake_intensity = 0.0
+                self.shake_duration = 0.0
     
-    def fade_from_black(self, duration: float) -> None:
-        """
-        Crea un fade in desde negro
+    def _load_assets(self) -> None:
+        """Carga todos los assets del juego"""
+        asset_files = {
+            'space_background': 'space_background.png',
+            'blue_spaceship': 'blue_spaceship.png',
+            'player': 'player.png',
+            'landing_moon': 'landing_moon.png',
+            'start_button': 'start_button.png',
+            'copper_mineral': 'copper_mineral.png',
+            'silver_mineral': 'silver_mineral.png',
+            'gold_mineral': 'gold_mineral.png',
+            'zorvax_alien': 'zorvax_alien.png',
+            'ktarr_alien': 'ktarr_alien.png',
+            'alien': 'alien.png',
+            'npc_helper': 'npc_helper.png'
+        }
         
-        Args:
-            duration: Duración del fade en segundos
-        """
-        # TODO: Implementar animación de fade
-        pass
+        for key, filename in asset_files.items():
+            path = os.path.join('data', 'assets', filename)
+            try:
+                if os.path.exists(path):
+                    image = pygame.image.load(path).convert_alpha()
+                    
+                    # Escalar assets según su tipo
+                    if key == 'blue_spaceship':
+                        image = pygame.transform.scale(image, (150, 100))
+                    elif key == 'player':
+                        image = pygame.transform.scale(image, (50, 70))
+                    elif key == 'landing_moon':
+                        image = pygame.transform.scale(image, (300, 150))
+                    elif 'alien' in key or key == 'npc_helper':
+                        image = pygame.transform.scale(image, (100, 120))
+                    elif 'button' in key:
+                        image = pygame.transform.scale(image, (200, 60))
+                    
+                    self.assets[key] = image
+                    logger.debug(f"Asset cargado: {filename}")
+            except Exception as e:
+                logger.warning(f"No se pudo cargar asset {filename}: {e}")
     
-    def clear_screen(self) -> None:
-        """Limpia la pantalla"""
-        # TODO: Rellenar pantalla con color de fondo
-        pass
-    
-    def present(self) -> None:
-        """Presenta el frame renderizado en pantalla"""
-        # TODO: pygame.display.flip()
-        pass
-    
-    def cleanup(self) -> None:
-        """Limpia recursos del renderer"""
-        # TODO: Liberar superficies
-        # TODO: pygame.quit()
-        pass
+    def _generate_stars(self) -> None:
+        """Genera estrellas aleatorias para el fondo"""
+        num_stars = 100
+        for _ in range(num_stars):
+            x = random.randint(0, self.screen_width)
+            y = random.randint(0, self.screen_height)
+            size = random.choice([1, 1, 1, 2])  # Más estrellas pequeñas
+            self.stars.append((x, y, size))
 
