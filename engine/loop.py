@@ -55,6 +55,7 @@ class GameLoop:
         self.renderer = None
         self.hud = None
         self.narrator = None
+        self.audio_manager = None
         self.config = None
         self.screen = None
         
@@ -241,8 +242,10 @@ class GameLoop:
         
         # Acciones específicas por fase
         if new_phase == "main_game":
-            # Avanzar turno al entrar en fase principal
-            self.game_state.advance_turn()
+            # Avanzar turno al entrar en fase principal (solo si no viene de intro)
+            # No avanzar turno si venimos de un minijuego (el turno ya avanzó al iniciar)
+            if old_phase == "intro":
+                self.game_state.advance_turn()
             
             # Resetear completamente el shake de la intro
             if self.renderer and hasattr(self.renderer, 'reset_shake'):
@@ -457,7 +460,14 @@ class GameLoop:
         logger.info(f"Minijuego de reparación iniciado: {game_name} (Intento #{self.repair_attempts})")
     
     def _complete_minigame(self) -> None:
-        """Completa el minijuego actual y vuelve al juego principal"""
+        """
+        Completa el minijuego actual y vuelve al juego principal
+        
+        IMPORTANTE: Después de cambiar de fase, verificamos si el jugador perdió
+        (game_over o victoria) ANTES de mostrar el prestamista, para evitar que
+        aparezca el prestamista cuando el juego ya terminó, lo que causaría un
+        cuelgue al no poder procesar el input correctamente.
+        """
         if self.current_minigame:
             # Obtener resultados del minijuego
             results = self.current_minigame.get_results()
@@ -555,7 +565,8 @@ class GameLoop:
         
         # Verificar si mostrar prestamista (educativo)
         # PERO NO después del minijuego de rescate de oxígeno
-        if not is_oxygen_rescue:
+        # Y TAMPOCO si el juego terminó (game over o victoria)
+        if not is_oxygen_rescue and not self.game_state.game_over and not self.game_state.victory:
             self._check_lender_appearance()
     
     def _check_lender_appearance(self) -> None:

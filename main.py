@@ -18,6 +18,7 @@ from engine.events import EventManager
 from ui.renderer import Renderer
 from ui.hud import HUD
 from ui.narrator import Narrator
+from ui.audio import AudioManager
 from finance.loan_manager import LoanManager
 from gameplay.resources import ResourceManager
 from gameplay.repair import RepairSystem
@@ -99,6 +100,7 @@ def main():
     renderer = Renderer(screen_width, screen_height)
     hud = HUD(screen)
     narrator = Narrator(screen)
+    audio_manager = AudioManager()
     
     # Conectar referencias cruzadas
     game_state.loan_manager = loan_manager
@@ -126,11 +128,17 @@ def main():
     hud.initialize()
     narrator.initialize()
     
+    # Cargar y reproducir música de fondo
+    if audio_manager.load_music('399325__komitwav__chiptune-loop-100-bpm.wav'):
+        audio_manager.play_music(loops=-1, fade_ms=1000)  # Loop infinito con fade in de 1 segundo
+        logger.info("Música de fondo iniciada")
+    
     # Crear y configurar el game loop
     game_loop = GameLoop(game_state, event_manager)
     game_loop.renderer = renderer
     game_loop.hud = hud
     game_loop.narrator = narrator
+    game_loop.audio_manager = audio_manager
     game_loop.config = config
     
     # Asignar game_state al renderer para que esté disponible desde el inicio
