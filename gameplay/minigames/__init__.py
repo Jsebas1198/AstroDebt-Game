@@ -9,6 +9,7 @@ from .asteroid_shooter import AsteroidShooterMinigame
 from .timing import TimingMinigame
 from .wiring import WiringMinigame
 from .dodge import DodgeMinigame
+from .oxygen_rescue import OxygenRescueMinigame
 
 __all__ = [
     'BaseMinigame',
@@ -16,6 +17,7 @@ __all__ = [
     'AsteroidShooterMinigame',
     'TimingMinigame',
     'WiringMinigame',
-    'DodgeMinigame'
+    'DodgeMinigame',
+    'OxygenRescueMinigame'
 ]
 

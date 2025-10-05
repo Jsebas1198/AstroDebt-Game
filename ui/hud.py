@@ -108,13 +108,14 @@ class HUD:
         # Renderizar notificaciones
         self.render_notifications()
         
-        # Renderizar paneles activos
-        if self.show_inventory:
-            self.render_inventory_panel()
-        if self.show_debt_panel:
-            self.render_debt_panel()
-        if self.show_repair_panel:
-            self.render_repair_panel()
+        # Renderizar paneles activos SOLO si NO estamos en un minijuego
+        if self.game_state.current_phase != "minigame":
+            if self.show_inventory:
+                self.render_inventory_panel()
+            if self.show_debt_panel:
+                self.render_debt_panel()
+            if self.show_repair_panel:
+                self.render_repair_panel()
     
     def render_oxygen_bar(self) -> None:
         """Renderiza la barra de oxígeno"""
@@ -582,6 +583,12 @@ class HUD:
         self.show_inventory = False
         self.show_debt_panel = False
     
+    def close_all_panels(self) -> None:
+        """Cierra todos los paneles activos"""
+        self.show_inventory = False
+        self.show_debt_panel = False
+        self.show_repair_panel = False
+    
     def update(self, delta_time: float) -> None:
         """
         Actualiza animaciones y timers del HUD
@@ -602,6 +609,10 @@ class HUD:
         Args:
             event: Evento de Pygame
         """
+        # NO procesar inputs del HUD durante minijuegos
+        if self.game_state and self.game_state.current_phase == "minigame":
+            return
+        
         if event.type == pygame.KEYDOWN:
             if event.key == pygame.K_i:
                 self.toggle_inventory()

@@ -13,7 +13,8 @@ from gameplay.minigames import (
     MiningMinigame,
     AsteroidShooterMinigame,
     TimingMinigame,
-    WiringMinigame
+    WiringMinigame,
+    OxygenRescueMinigame
 )
 
 logger = logging.getLogger(__name__)
@@ -66,6 +67,11 @@ class GameLoop:
         # Contadores para mostrar tutorial de minijuegos (primeros 2 intentos)
         self.mining_attempts = 0  # Contador de intentos de minería
         self.repair_attempts = 0  # Contador de intentos de reparación
+        
+        # Control del evento de oxígeno
+        self.oxygen_event_shown = False  # Para mostrar solo una vez por sesión
+        self.oxygen_event_pending = False  # Si hay un evento pendiente
+        self.oxygen_event_accepted = False  # Si el jugador aceptó el evento
         
         # Suscribir a eventos importantes
         self._setup_event_subscriptions()
@@ -132,7 +138,12 @@ class GameLoop:
                 self._handle_end_events(event)
             
             # Delegar a componentes UI
-            if self.narrator and self.narrator.is_active:
+            # IMPORTANTE: Si el prestamista está esperando input o hay evento de oxígeno,
+            # NO delegar al narrador para evitar conflictos con SPACE
+            lender_blocking = self.renderer and self.renderer.lender_waiting_for_input
+            oxygen_event_blocking = self.oxygen_event_pending
+            
+            if self.narrator and self.narrator.is_active and not lender_blocking and not oxygen_event_blocking:
                 self.narrator.handle_input(event)
             elif self.hud and self.input_enabled:
                 self.hud.handle_input(event)
@@ -169,6 +180,11 @@ class GameLoop:
         # Verificar condiciones del juego
         if self.game_state.current_phase == "main_game":
             self.game_state.check_game_over_conditions()
+            
+            # Verificar evento de oxígeno (solo una vez cuando baja del 80%)
+            if (self.game_state.oxygen < 80 and not self.oxygen_event_shown 
+                and not self.oxygen_event_pending):
+                self._trigger_oxygen_event()
     
     def render(self) -> None:
         """Renderiza el frame actual"""
@@ -276,7 +292,24 @@ class GameLoop:
     def _handle_main_game_events(self, event: pygame.event.Event) -> None:
         """Maneja eventos durante la fase principal del juego"""
         if event.type == pygame.KEYDOWN:
-            # Si el prestamista está visible esperando input, solo permitir continuar
+            # PRIORIDAD 1: Verificar si hay evento de oxígeno pendiente (tiene máxima prioridad)
+            if self.oxygen_event_pending:
+                if event.key == pygame.K_y:  # Aceptar ayudar al marciano
+                    self.oxygen_event_accepted = True
+                    self.oxygen_event_pending = False
+                    self.start_oxygen_rescue_minigame()
+                    return
+                elif event.key == pygame.K_n:  # Rechazar ayuda
+                    self.oxygen_event_pending = False
+                    if self.narrator:
+                        self.narrator.is_active = False
+                    if self.hud:
+                        self.hud.add_notification("Has decidido no ayudar al marciano", "info")
+                    return
+                # Si hay evento de oxígeno pendiente, ignorar otras teclas
+                return
+            
+            # PRIORIDAD 2: Si el prestamista está visible esperando input, solo permitir continuar
             if self.renderer and self.renderer.lender_waiting_for_input:
                 if event.key == pygame.K_SPACE:
                     # Ocultar prestamista y cerrar narrador
@@ -287,7 +320,7 @@ class GameLoop:
                     logger.info("Jugador continuó después de ver prestamista")
                 return  # No procesar otras teclas mientras el prestamista está visible
             
-            # Atajos de teclado para acciones (solo si no hay prestamista visible)
+            # PRIORIDAD 3: Atajos de teclado para acciones normales
             if event.key == pygame.K_m:
                 # Minar materiales
                 self.start_mining_minigame()
@@ -334,6 +367,10 @@ class GameLoop:
         oxygen_consumed = random.randint(12, 15)
         self.game_state.update_oxygen(-oxygen_consumed)
         logger.info(f"Oxígeno consumido en minería: {oxygen_consumed}")
+        
+        # Cerrar paneles del HUD antes de entrar al minijuego
+        if self.hud:
+            self.hud.close_all_panels()
         
         # Cambiar a fase de minijuego
         self.change_phase("minigame")
@@ -385,6 +422,10 @@ class GameLoop:
         materials_cost = random.randint(5, 10)
         self.game_state.consume_materials(materials_cost)
         
+        # Cerrar paneles del HUD antes de entrar al minijuego
+        if self.hud:
+            self.hud.close_all_panels()
+        
         # Cambiar a fase de minijuego
         self.change_phase("minigame")
         
@@ -421,39 +462,63 @@ class GameLoop:
             # Obtener resultados del minijuego
             results = self.current_minigame.get_results()
             
-            # Procesar recompensas de materiales (siempre procesar, incluso si es 0)
-            materials_gained = results['reward_materials']
+            # Verificar si es el minijuego de rescate de oxígeno
+            is_oxygen_rescue = isinstance(self.current_minigame, OxygenRescueMinigame)
             
-            if materials_gained > 0:
-                self.game_state.add_materials(materials_gained)
-            
-            # Emitir evento y notificación según el éxito
-            if results['success']:
-                self.event_manager.emit_quick(
-                    EventType.MATERIALS_GAINED_SUCCESS,
-                    {'amount': materials_gained}
-                )
-                if self.hud:
-                    self.hud.add_notification(
-                        f"¡Éxito! Obtuviste {materials_gained} materiales",
-                        "success"
+            if is_oxygen_rescue:
+                # Procesar recompensa de oxígeno
+                oxygen_reward = results.get('reward_oxygen', 0)
+                if oxygen_reward > 0:
+                    self.game_state.update_oxygen(oxygen_reward)
+                    self.event_manager.emit_quick(
+                        EventType.OXYGEN_CHANGED,
+                        {'amount': oxygen_reward, 'current': self.game_state.oxygen}
                     )
-            else:
-                self.event_manager.emit_quick(
-                    EventType.MATERIALS_GAINED_FAIL,
-                    {'amount': materials_gained}
-                )
-                if self.hud:
-                    if materials_gained > 0:
+                    if self.hud:
                         self.hud.add_notification(
-                            f"Recolectaste {materials_gained} materiales (objetivo no alcanzado)",
-                            "warning"
+                            f"¡Has rescatado al marciano y obtenido +{oxygen_reward} de oxígeno!",
+                            "success"
                         )
-                    else:
+                else:
+                    if self.hud:
                         self.hud.add_notification(
-                            "No recolectaste materiales",
+                            "El marciano no pudo ser rescatado",
                             "error"
                         )
+            else:
+                # Procesar recompensas de materiales (minijuegos normales)
+                materials_gained = results['reward_materials']
+                
+                if materials_gained > 0:
+                    self.game_state.add_materials(materials_gained)
+                
+                # Emitir evento y notificación según el éxito
+                if results['success']:
+                    self.event_manager.emit_quick(
+                        EventType.MATERIALS_GAINED_SUCCESS,
+                        {'amount': materials_gained}
+                    )
+                    if self.hud:
+                        self.hud.add_notification(
+                            f"¡Éxito! Obtuviste {materials_gained} materiales",
+                            "success"
+                        )
+                else:
+                    self.event_manager.emit_quick(
+                        EventType.MATERIALS_GAINED_FAIL,
+                        {'amount': materials_gained}
+                    )
+                    if self.hud:
+                        if materials_gained > 0:
+                            self.hud.add_notification(
+                                f"Recolectaste {materials_gained} materiales (objetivo no alcanzado)",
+                                "warning"
+                            )
+                        else:
+                            self.hud.add_notification(
+                                "No recolectaste materiales",
+                                "error"
+                            )
             
             # Procesar recompensas de reparación
             if results['reward_repair'] != 0:
@@ -489,7 +554,9 @@ class GameLoop:
         self.change_phase("main_game")
         
         # Verificar si mostrar prestamista (educativo)
-        self._check_lender_appearance()
+        # PERO NO después del minijuego de rescate de oxígeno
+        if not is_oxygen_rescue:
+            self._check_lender_appearance()
     
     def _check_lender_appearance(self) -> None:
         """
@@ -527,6 +594,50 @@ class GameLoop:
             
             logger.info(f"Prestamista aleatorio aparecido: {selected_lender} (Oxígeno: {self.game_state.oxygen:.1f})")
     
+    def _trigger_oxygen_event(self) -> None:
+        """Dispara el evento de oxígeno cuando está por debajo del 80%"""
+        self.oxygen_event_shown = True
+        self.oxygen_event_pending = True
+        
+        # Ocultar prestamista si está visible (para evitar conflictos)
+        if self.renderer and self.renderer.lender_visible:
+            self.renderer.dismiss_lender()
+            logger.info("Prestamista ocultado para mostrar evento de oxígeno")
+        
+        # Mostrar narrativa del evento
+        if self.narrator:
+            narrative_text = (
+                "¡Un marciano necesita tu ayuda! "
+                "Está siendo atacado por criaturas hostiles. "
+                "Si lo rescatas, te recompensará con oxígeno valioso. "
+                "¿Quieres ayudarlo? (Presiona Y para aceptar, N para rechazar)"
+            )
+            self.narrator.show_narrative(narrative_text)
+        
+        # Notificación en HUD
+        if self.hud:
+            self.hud.add_notification("⚠️ Evento de Oxígeno: ¡Un marciano necesita ayuda!", "warning")
+        
+        logger.info(f"Evento de oxígeno disparado (Oxígeno actual: {self.game_state.oxygen:.1f})")
+    
+    def start_oxygen_rescue_minigame(self) -> None:
+        """Inicia el minijuego de rescate del marciano"""
+        logger.info("Iniciando minijuego de rescate del marciano")
+        
+        # Cerrar paneles del HUD antes de entrar al minijuego
+        if self.hud:
+            self.hud.close_all_panels()
+        
+        # Cambiar a fase de minijuego
+        self.change_phase("minigame")
+        
+        # Crear el minijuego
+        self.current_minigame = OxygenRescueMinigame(self.screen.get_width(), self.screen.get_height())
+        
+        # Notificación
+        if self.hud:
+            self.hud.add_notification("¡Rescata al marciano de los enemigos!", "info")
+    
     def _restart_game(self) -> None:
         """Reinicia el juego"""
         logger.info("Reiniciando juego...")
@@ -537,6 +648,11 @@ class GameLoop:
         # Resetear contadores de minijuegos (para volver a mostrar tutorial)
         self.mining_attempts = 0
         self.repair_attempts = 0
+        
+        # Resetear control del evento de oxígeno
+        self.oxygen_event_shown = False
+        self.oxygen_event_pending = False
+        self.oxygen_event_accepted = False
         
         # Resetear animaciones del renderer
         if self.renderer:
