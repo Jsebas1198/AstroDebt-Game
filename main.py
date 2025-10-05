@@ -132,6 +132,24 @@ def main():
     game_loop.hud = hud
     game_loop.narrator = narrator
     game_loop.config = config
+    
+    # Asignar game_state al renderer para que esté disponible desde el inicio
+    renderer.game_state = game_state
+    
+    # 🎉 MODO TESTING DE ANIMACIÓN DE VICTORIA
+    # Descomentar para probar la animación de victoria inmediatamente:
+    TEST_VICTORY_ANIMATION = False  # Cambiar a True para testear victoria inmediata
+    
+    if TEST_VICTORY_ANIMATION:
+        logger.info("🧪 MODO TESTING: Victoria automática activada")
+        # Configurar para victoria inmediata
+        game_state.repair_progress = 100.0
+        game_state.victory = True
+        game_state.current_phase = "end"
+        # Añadir algunos valores de ejemplo para las estadísticas
+        game_state.materials = 50
+        game_state.oxygen = 75.0
+        game_state.turn_number = 15
     game_loop.screen = screen
     
     try:

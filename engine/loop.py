@@ -63,6 +63,10 @@ class GameLoop:
         # Control de input
         self.input_enabled = True
         
+        # Contadores para mostrar tutorial de minijuegos (primeros 2 intentos)
+        self.mining_attempts = 0  # Contador de intentos de minería
+        self.repair_attempts = 0  # Contador de intentos de reparación
+        
         # Suscribir a eventos importantes
         self._setup_event_subscriptions()
     
@@ -70,18 +74,19 @@ class GameLoop:
         """Inicia el bucle principal del juego"""
         logger.info("Iniciando bucle del juego...")
         
-        # Establecer fase inicial
-        self.game_state.current_phase = "intro"
-        
-        # Mostrar narrativa inicial
-        if self.narrator:
-            intro_text = (
-                "Tu nave se estrelló en un planeta desconocido. "
-                "Para volver a la Tierra deberás reparar tu nave, "
-                "gestionar tu oxígeno y tus materiales, "
-                "y decidir sabiamente si tomas préstamos de oxígeno... o no."
-            )
-            self.narrator.show_narrative(intro_text)
+        # Establecer fase inicial (solo si no está en modo testing)
+        if self.game_state.current_phase != "end":
+            self.game_state.current_phase = "intro"
+            
+            # Mostrar narrativa inicial
+            if self.narrator:
+                intro_text = (
+                    "Tu nave se estrelló en un planeta desconocido. "
+                    "Para volver a la Tierra deberás reparar tu nave, "
+                    "gestionar tu oxígeno y tus materiales, "
+                    "y decidir sabiamente si tomas préstamos de oxígeno... o no."
+                )
+                self.narrator.show_narrative(intro_text)
         
         # Emitir evento de inicio
         self.event_manager.emit_quick(EventType.PHASE_CHANGED, {"phase": "intro"})
@@ -287,8 +292,18 @@ class GameLoop:
         """Maneja eventos durante la pantalla final"""
         if event.type == pygame.KEYDOWN:
             if event.key == pygame.K_SPACE:
-                # Reiniciar juego
-                self._restart_game()
+                # Si es victoria y no ha comenzado la animación, iniciarla
+                if (self.game_state.victory and self.renderer and 
+                    not self.renderer.victory_animation_active and 
+                    not self.renderer.victory_animation_complete):
+                    self.renderer.start_victory_animation()
+                # Si la animación ya completó, reiniciar juego
+                elif (self.game_state.victory and self.renderer and 
+                      self.renderer.victory_animation_complete):
+                    self._restart_game()
+                # Si no es victoria (game over), reiniciar directamente
+                else:
+                    self._restart_game()
             elif event.key == pygame.K_ESCAPE:
                 # Salir del juego
                 self.stop()
@@ -306,19 +321,32 @@ class GameLoop:
         # Cambiar a fase de minijuego
         self.change_phase("minigame")
         
-        # Elegir aleatoriamente entre los dos minijuegos de minería
-        mining_games = [MiningMinigame, AsteroidShooterMinigame]
-        selected_game = random.choice(mining_games)
+        # Incrementar contador de intentos
+        self.mining_attempts += 1
+        
+        # Primeros 2 intentos: mostrar ambos minijuegos en orden (tutorial)
+        if self.mining_attempts == 1:
+            # Primer intento: Mining Clicker
+            selected_game = MiningMinigame
+            logger.info("Tutorial: Mostrando Mineral Rush (primer intento de minería)")
+        elif self.mining_attempts == 2:
+            # Segundo intento: Asteroid Shooter
+            selected_game = AsteroidShooterMinigame
+            logger.info("Tutorial: Mostrando Asteroid Shooter (segundo intento de minería)")
+        else:
+            # A partir del tercer intento: aleatorio
+            mining_games = [MiningMinigame, AsteroidShooterMinigame]
+            selected_game = random.choice(mining_games)
         
         # Crear el minijuego seleccionado
         self.current_minigame = selected_game(self.screen.get_width(), self.screen.get_height())
         
         # Mostrar notificación del minijuego
-        game_name = "Mining Clicker" if selected_game == MiningMinigame else "Asteroid Shooter"
+        game_name = "Mineral Rush" if selected_game == MiningMinigame else "Asteroid Shooter"
         if self.hud:
             self.hud.add_notification(f"Iniciando: {game_name}", "info")
         
-        logger.info(f"Minijuego de minería iniciado: {game_name}")
+        logger.info(f"Minijuego de minería iniciado: {game_name} (Intento #{self.mining_attempts})")
     
     def start_repair_minigame(self) -> None:
         """Inicia el minijuego de reparación"""
@@ -340,9 +368,22 @@ class GameLoop:
         # Cambiar a fase de minijuego
         self.change_phase("minigame")
         
-        # Elegir aleatoriamente entre los dos minijuegos de reparación
-        repair_games = [TimingMinigame, WiringMinigame]
-        selected_game = random.choice(repair_games)
+        # Incrementar contador de intentos
+        self.repair_attempts += 1
+        
+        # Primeros 2 intentos: mostrar ambos minijuegos en orden (tutorial)
+        if self.repair_attempts == 1:
+            # Primer intento: Timing Precision
+            selected_game = TimingMinigame
+            logger.info("Tutorial: Mostrando Timing Precision (primer intento de reparación)")
+        elif self.repair_attempts == 2:
+            # Segundo intento: Wiring Puzzle
+            selected_game = WiringMinigame
+            logger.info("Tutorial: Mostrando Wiring Puzzle (segundo intento de reparación)")
+        else:
+            # A partir del tercer intento: aleatorio
+            repair_games = [TimingMinigame, WiringMinigame]
+            selected_game = random.choice(repair_games)
         
         # Crear el minijuego seleccionado
         self.current_minigame = selected_game(self.screen.get_width(), self.screen.get_height())
@@ -352,7 +393,7 @@ class GameLoop:
         if self.hud:
             self.hud.add_notification(f"Iniciando: {game_name}", "info")
         
-        logger.info(f"Minijuego de reparación iniciado: {game_name}")
+        logger.info(f"Minijuego de reparación iniciado: {game_name} (Intento #{self.repair_attempts})")
     
     def _complete_minigame(self) -> None:
         """Completa el minijuego actual y vuelve al juego principal"""
@@ -422,8 +463,36 @@ class GameLoop:
     def _restart_game(self) -> None:
         """Reinicia el juego"""
         logger.info("Reiniciando juego...")
-        # Reiniciar estado
+        
+        # Reiniciar estado del juego
         self.game_state.__init__(self.game_state.config)
+        
+        # Resetear contadores de minijuegos (para volver a mostrar tutorial)
+        self.mining_attempts = 0
+        self.repair_attempts = 0
+        
+        # Resetear animaciones del renderer
+        if self.renderer:
+            self.renderer.reset_animations()
+        
+        # Resetear narrador
+        if self.narrator:
+            self.narrator.is_active = False
+            self.narrator.current_dialogue = None
+            self.narrator.dialogue_queue.clear()
+        
         # Volver a intro
         self.change_phase("intro")
+        
+        # Mostrar narrativa inicial de nuevo
+        if self.narrator:
+            intro_text = (
+                "Tu nave se estrelló en un planeta desconocido. "
+                "Para volver a la Tierra deberás reparar tu nave, "
+                "gestionar tu oxígeno y tus materiales, "
+                "y decidir sabiamente si tomas préstamos de oxígeno... o no."
+            )
+            self.narrator.show_narrative(intro_text)
+        
+        logger.info("Juego reiniciado completamente")
 
