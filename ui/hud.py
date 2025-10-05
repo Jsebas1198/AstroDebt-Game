@@ -58,6 +58,11 @@ class HUD:
         self.show_repair_panel = False
         self.show_action_menu = True
         
+        # Modal de intercambio de materiales por oxígeno
+        self.show_exchange_modal = False
+        self.exchange_amount = 0
+        self.exchange_slider_dragging = False
+        
         # Assets del HUD
         self.assets = {}
         
@@ -66,7 +71,7 @@ class HUD:
         self.materials_pos = (20, 80)
         self.repair_bar_pos = (20, 140)
         self.turn_info_pos = (self.screen_width - 200, 20)
-        self.action_menu_pos = (self.screen_width // 2 - 150, self.screen_height - 100)
+        self.action_menu_pos = (self.screen_width // 2 - 175, self.screen_height - 140)
     
     def initialize(self) -> None:
         """Inicializa fuentes y recursos del HUD"""
@@ -95,6 +100,7 @@ class HUD:
         self.render_oxygen_bar()
         self.render_resource_summary()
         self.render_repair_progress()
+        self.render_exchange_button()
         self.render_turn_info()
         
         # Renderizar información de deudas si hay préstamos activos
@@ -116,6 +122,10 @@ class HUD:
                 self.render_debt_panel()
             if self.show_repair_panel:
                 self.render_repair_panel()
+        
+        # Renderizar modal de intercambio (sobre todo lo demás)
+        if self.show_exchange_modal:
+            self.render_exchange_modal()
     
     def render_oxygen_bar(self) -> None:
         """Renderiza la barra de oxígeno"""
@@ -246,6 +256,65 @@ class HUD:
             msg_rect = msg.get_rect()
             msg_rect.center = (self.screen_width // 2, self.screen_height // 2 - 100)
             self.screen.blit(msg, msg_rect)
+    
+    def render_exchange_button(self) -> None:
+        """Renderiza el botón de intercambio de materiales por oxígeno"""
+        if not self.game_state:
+            return
+        
+        # Posición: justo debajo de la barra de reparación
+        x, y = self.repair_bar_pos
+        button_y = y + 45  # 45 píxeles debajo de la barra de reparación
+        button_x = x
+        button_width = 250
+        button_height = 35
+        
+        # Determinar si el botón está habilitado
+        is_enabled = (self.game_state.materials > 0 and 
+                     self.game_state.oxygen < 100 and 
+                     self.game_state.current_phase == "main_game")
+        
+        # Color del botón según estado
+        if is_enabled:
+            button_color = (50, 100, 150)  # Azul
+            text_color = (255, 255, 255)
+            border_color = (100, 150, 200)
+        else:
+            button_color = (60, 60, 60)  # Gris oscuro
+            text_color = (120, 120, 120)
+            border_color = (80, 80, 80)
+        
+        # Dibujar botón
+        button_rect = pygame.Rect(button_x, button_y, button_width, button_height)
+        pygame.draw.rect(self.screen, button_color, button_rect)
+        pygame.draw.rect(self.screen, border_color, button_rect, 2)
+        
+        # Texto del botón
+        button_text = "🪙 Conseguir Oxígeno [O]"
+        text_surface = self.small_font.render(button_text, True, text_color)
+        text_rect = text_surface.get_rect()
+        text_rect.center = button_rect.center
+        self.screen.blit(text_surface, text_rect)
+        
+        # Texto de ayuda debajo del botón (solo si está habilitado)
+        if is_enabled:
+            help_text = f"(Tienes {self.game_state.materials} materiales)"
+            help_surface = self.small_font.render(help_text, True, (150, 150, 150))
+            help_rect = help_surface.get_rect()
+            help_rect.midleft = (button_x, button_y + button_height + 12)
+            self.screen.blit(help_surface, help_rect)
+        elif self.game_state.oxygen >= 100:
+            help_text = "(Oxígeno al máximo)"
+            help_surface = self.small_font.render(help_text, True, (100, 200, 100))
+            help_rect = help_surface.get_rect()
+            help_rect.midleft = (button_x, button_y + button_height + 12)
+            self.screen.blit(help_surface, help_rect)
+        elif self.game_state.materials <= 0:
+            help_text = "(Sin materiales)"
+            help_surface = self.small_font.render(help_text, True, (150, 150, 150))
+            help_rect = help_surface.get_rect()
+            help_rect.midleft = (button_x, button_y + button_height + 12)
+            self.screen.blit(help_surface, help_rect)
     
     def render_debt_summary(self) -> None:
         """Renderiza resumen de deudas activas"""
@@ -552,8 +621,8 @@ class HUD:
         
         # Opciones
         actions = [
-            "[M] Minar Materiales (Costo: 2 Oxígeno)",
-            "[R] Reparar Nave (Costo: 3 Ox + 5-10 Mat)"
+            "[M] Minar Materiales (Costo: 12-15 Oxígeno)",
+            "[R] Reparar Nave (Costo: 12-15 Ox + 5-10 Mat)"
         ]
         
         y_offset = 35
@@ -589,6 +658,81 @@ class HUD:
         self.show_debt_panel = False
         self.show_repair_panel = False
     
+    def open_exchange_modal(self) -> None:
+        """Abre el modal de intercambio de materiales por oxígeno"""
+        if not self.game_state:
+            return
+        
+        # Verificar si el oxígeno ya está al máximo
+        if self.game_state.oxygen >= 100:
+            self.add_notification("Tu oxígeno ya está al 100% ✅", "info")
+            return
+        
+        # Verificar si tiene materiales
+        if self.game_state.materials <= 0:
+            self.add_notification("No tienes materiales para vender ❌", "error")
+            return
+        
+        if self.game_state.current_phase == "minigame":
+            return
+        
+        self.show_exchange_modal = True
+        self.exchange_amount = 0
+        logger.info("Modal de intercambio abierto")
+    
+    def close_exchange_modal(self) -> None:
+        """Cierra el modal de intercambio"""
+        self.show_exchange_modal = False
+        self.exchange_amount = 0
+        self.exchange_slider_dragging = False
+        logger.info("Modal de intercambio cerrado")
+    
+    def confirm_exchange(self) -> None:
+        """Confirma el intercambio de materiales por oxígeno"""
+        if not self.game_state or self.exchange_amount <= 0:
+            return
+        
+        # Verificar si el oxígeno ya está al máximo
+        if self.game_state.oxygen >= 100:
+            self.add_notification("Tu oxígeno ya está al 100% ✅", "info")
+            self.close_exchange_modal()
+            return
+        
+        if self.exchange_amount > self.game_state.materials:
+            self.add_notification("Cantidad no válida ❌", "error")
+            return
+        
+        # Realizar el intercambio: 2 materiales = 1 oxígeno
+        materials_to_sell = self.exchange_amount
+        
+        # Calcular oxígeno que se ganaría (siempre números enteros)
+        # Solo se puede vender en pares de materiales
+        if materials_to_sell % 2 != 0:
+            # Si es impar, redondear hacia abajo
+            materials_to_sell = materials_to_sell - 1
+        
+        oxygen_gained = materials_to_sell // 2  # División entera
+        
+        # Verificar que no se exceda el máximo de oxígeno
+        oxygen_available = 100 - self.game_state.oxygen
+        if oxygen_gained > oxygen_available:
+            # Ajustar la cantidad para no exceder 100
+            oxygen_gained = int(oxygen_available)
+            materials_to_sell = oxygen_gained * 2
+            
+            if materials_to_sell <= 0:
+                self.add_notification("Tu oxígeno ya está al 100% ✅", "info")
+                self.close_exchange_modal()
+                return
+        
+        self.game_state.consume_materials(materials_to_sell)
+        self.game_state.update_oxygen(float(oxygen_gained))
+        
+        self.add_notification(f"+{oxygen_gained:.1f} oxígeno conseguido 🫧", "success")
+        logger.info(f"Intercambio realizado: {materials_to_sell} materiales por {oxygen_gained:.1f} oxígeno")
+        
+        self.close_exchange_modal()
+    
     def update(self, delta_time: float) -> None:
         """
         Actualiza animaciones y timers del HUD
@@ -613,6 +757,11 @@ class HUD:
         if self.game_state and self.game_state.current_phase == "minigame":
             return
         
+        # Manejar eventos del modal de intercambio si está activo
+        if self.show_exchange_modal:
+            self._handle_exchange_modal_input(event)
+            return
+        
         if event.type == pygame.KEYDOWN:
             if event.key == pygame.K_i:
                 self.toggle_inventory()
@@ -620,6 +769,9 @@ class HUD:
                 self.toggle_debt_panel()
             elif event.key == pygame.K_p:
                 self.toggle_repair_panel()
+            elif event.key == pygame.K_o:
+                # Abrir modal de intercambio
+                self.open_exchange_modal()
             elif event.key == pygame.K_ESCAPE:
                 # Cerrar todos los paneles
                 self.show_inventory = False
@@ -651,4 +803,249 @@ class HUD:
                     logger.debug(f"Asset cargado: {filename}")
             except Exception as e:
                 logger.warning(f"No se pudo cargar asset {filename}: {e}")
+    
+    def _calculate_max_materials_to_sell(self) -> int:
+        """Calcula el máximo de materiales que se pueden vender sin exceder 100 de oxígeno"""
+        if not self.game_state:
+            return 0
+        
+        # Calcular cuánto oxígeno falta para llegar a 100
+        oxygen_needed = 100 - self.game_state.oxygen
+        
+        # Calcular cuántos materiales se necesitan para ese oxígeno
+        # 2 materiales = 1 oxígeno, entonces materiales = oxígeno * 2
+        max_materials_for_oxygen = int(oxygen_needed) * 2
+        
+        # El máximo es el menor entre los materiales disponibles y los necesarios
+        return min(self.game_state.materials, max_materials_for_oxygen)
+    
+    def _handle_exchange_modal_input(self, event: pygame.event.Event) -> None:
+        """Maneja inputs dentro del modal de intercambio"""
+        if event.type == pygame.KEYDOWN:
+            if event.key == pygame.K_ESCAPE:
+                self.close_exchange_modal()
+            elif event.key == pygame.K_RETURN:
+                self.confirm_exchange()
+            elif event.key == pygame.K_LEFT:
+                self.exchange_amount = max(0, self.exchange_amount - 1)
+            elif event.key == pygame.K_RIGHT:
+                if self.game_state:
+                    max_materials = self._calculate_max_materials_to_sell()
+                    self.exchange_amount = min(max_materials, self.exchange_amount + 1)
+        
+        elif event.type == pygame.MOUSEBUTTONDOWN:
+            if event.button == 1:  # Click izquierdo
+                self._handle_exchange_modal_click(event.pos)
+        
+        elif event.type == pygame.MOUSEMOTION:
+            if self.exchange_slider_dragging:
+                self._handle_slider_drag(event.pos)
+        
+        elif event.type == pygame.MOUSEBUTTONUP:
+            if event.button == 1:
+                self.exchange_slider_dragging = False
+    
+    def _handle_exchange_modal_click(self, mouse_pos: Tuple[int, int]) -> None:
+        """Maneja clicks dentro del modal"""
+        # Calcular posiciones de los botones
+        modal_rect = pygame.Rect(
+            self.screen_width // 2 - 250,
+            self.screen_height // 2 - 200,
+            500,
+            400
+        )
+        
+        # Botón confirmar
+        confirm_btn = pygame.Rect(
+            modal_rect.centerx - 210,
+            modal_rect.bottom - 60,
+            200,
+            50
+        )
+        
+        # Botón cancelar
+        cancel_btn = pygame.Rect(
+            modal_rect.centerx + 10,
+            modal_rect.bottom - 60,
+            200,
+            50
+        )
+        
+        # Slider
+        slider_rect = pygame.Rect(
+            modal_rect.left + 50,
+            modal_rect.centery - 20,
+            modal_rect.width - 100,
+            40
+        )
+        
+        if confirm_btn.collidepoint(mouse_pos):
+            self.confirm_exchange()
+        elif cancel_btn.collidepoint(mouse_pos):
+            self.close_exchange_modal()
+        elif slider_rect.collidepoint(mouse_pos):
+            self.exchange_slider_dragging = True
+            self._handle_slider_drag(mouse_pos)
+    
+    def _handle_slider_drag(self, mouse_pos: Tuple[int, int]) -> None:
+        """Maneja el arrastre del slider"""
+        if not self.game_state:
+            return
+        
+        modal_rect = pygame.Rect(
+            self.screen_width // 2 - 250,
+            self.screen_height // 2 - 200,
+            500,
+            400
+        )
+        
+        slider_start_x = modal_rect.left + 50
+        slider_width = modal_rect.width - 100
+        
+        # Calcular posición relativa en el slider
+        relative_x = mouse_pos[0] - slider_start_x
+        percentage = max(0.0, min(1.0, relative_x / slider_width))
+        
+        # Calcular el máximo de materiales que se pueden vender
+        max_materials = self._calculate_max_materials_to_sell()
+        
+        self.exchange_amount = int(percentage * max_materials)
+    
+    def render_exchange_modal(self) -> None:
+        """Renderiza el modal de intercambio de materiales por oxígeno"""
+        if not self.game_state:
+            return
+        
+        # Overlay semitransparente
+        overlay = pygame.Surface((self.screen_width, self.screen_height))
+        overlay.fill((0, 0, 0))
+        overlay.set_alpha(180)
+        self.screen.blit(overlay, (0, 0))
+        
+        # Ventana modal
+        modal_rect = pygame.Rect(
+            self.screen_width // 2 - 250,
+            self.screen_height // 2 - 200,
+            500,
+            400
+        )
+        
+        # Fondo del modal
+        pygame.draw.rect(self.screen, (40, 50, 70), modal_rect)
+        pygame.draw.rect(self.screen, (100, 150, 200), modal_rect, 3)
+        
+        # Título
+        title_text = "Intercambiar materiales por oxígeno"
+        title_surface = self.large_font.render(title_text, True, (255, 255, 255))
+        title_rect = title_surface.get_rect()
+        title_rect.centerx = modal_rect.centerx
+        title_rect.top = modal_rect.top + 20
+        self.screen.blit(title_surface, title_rect)
+        
+        # Materiales disponibles y máximo que se puede vender
+        max_materials = self._calculate_max_materials_to_sell()
+        materials_text = f"Materiales disponibles: {self.game_state.materials} (máx. vender: {max_materials})"
+        materials_surface = self.font.render(materials_text, True, (200, 200, 255))
+        materials_rect = materials_surface.get_rect()
+        materials_rect.centerx = modal_rect.centerx
+        materials_rect.top = title_rect.bottom + 30
+        self.screen.blit(materials_surface, materials_rect)
+        
+        # Slider para seleccionar cantidad
+        slider_y = modal_rect.centery - 20
+        slider_rect = pygame.Rect(
+            modal_rect.left + 50,
+            slider_y,
+            modal_rect.width - 100,
+            40
+        )
+        
+        # Fondo del slider
+        pygame.draw.rect(self.screen, (60, 70, 90), slider_rect)
+        pygame.draw.rect(self.screen, (150, 150, 150), slider_rect, 2)
+        
+        # Indicador del slider
+        if max_materials > 0:
+            slider_percentage = self.exchange_amount / max_materials
+            indicator_x = slider_rect.left + int(slider_percentage * slider_rect.width)
+            indicator_rect = pygame.Rect(indicator_x - 5, slider_rect.top - 5, 10, slider_rect.height + 10)
+            pygame.draw.rect(self.screen, (100, 200, 255), indicator_rect)
+        
+        # Cantidad seleccionada
+        amount_text = f"Cantidad a vender: {self.exchange_amount}"
+        amount_surface = self.font.render(amount_text, True, (255, 255, 255))
+        amount_rect = amount_surface.get_rect()
+        amount_rect.centerx = modal_rect.centerx
+        amount_rect.top = slider_rect.bottom + 20
+        self.screen.blit(amount_surface, amount_rect)
+        
+        # Oxígeno a recibir (siempre números enteros)
+        # Ajustar si es impar (solo se vende en pares)
+        materials_actual = self.exchange_amount
+        if materials_actual % 2 != 0:
+            materials_actual = materials_actual - 1
+        
+        oxygen_to_receive = materials_actual // 2  # División entera
+        
+        # Verificar límite de oxígeno
+        oxygen_available = 100 - self.game_state.oxygen
+        if oxygen_to_receive > oxygen_available:
+            oxygen_to_receive = int(oxygen_available)
+        
+        oxygen_text = f"Recibirás: {oxygen_to_receive} oxígeno"
+        oxygen_surface = self.large_font.render(oxygen_text, True, (100, 255, 200))
+        oxygen_rect = oxygen_surface.get_rect()
+        oxygen_rect.centerx = modal_rect.centerx
+        oxygen_rect.top = amount_rect.bottom + 15
+        self.screen.blit(oxygen_surface, oxygen_rect)
+        
+        # Tasa de cambio
+        rate_text = "(Tasa: 2 materiales = 1 oxígeno)"
+        rate_surface = self.small_font.render(rate_text, True, (180, 180, 180))
+        rate_rect = rate_surface.get_rect()
+        rate_rect.centerx = modal_rect.centerx
+        rate_rect.top = oxygen_rect.bottom + 5
+        self.screen.blit(rate_surface, rate_rect)
+        
+        # Botones
+        # Botón confirmar
+        confirm_btn = pygame.Rect(
+            modal_rect.centerx - 210,
+            modal_rect.bottom - 60,
+            200,
+            50
+        )
+        confirm_color = (50, 200, 100) if self.exchange_amount > 0 else (100, 100, 100)
+        pygame.draw.rect(self.screen, confirm_color, confirm_btn)
+        pygame.draw.rect(self.screen, (255, 255, 255), confirm_btn, 2)
+        
+        confirm_text = "✅ Confirmar"
+        confirm_surface = self.font.render(confirm_text, True, (255, 255, 255))
+        confirm_text_rect = confirm_surface.get_rect()
+        confirm_text_rect.center = confirm_btn.center
+        self.screen.blit(confirm_surface, confirm_text_rect)
+        
+        # Botón cancelar
+        cancel_btn = pygame.Rect(
+            modal_rect.centerx + 10,
+            modal_rect.bottom - 60,
+            200,
+            50
+        )
+        pygame.draw.rect(self.screen, (200, 50, 50), cancel_btn)
+        pygame.draw.rect(self.screen, (255, 255, 255), cancel_btn, 2)
+        
+        cancel_text = "❌ Cancelar"
+        cancel_surface = self.font.render(cancel_text, True, (255, 255, 255))
+        cancel_text_rect = cancel_surface.get_rect()
+        cancel_text_rect.center = cancel_btn.center
+        self.screen.blit(cancel_surface, cancel_text_rect)
+        
+        # Instrucciones
+        instructions = "[←/→] Ajustar cantidad | [ENTER] Confirmar | [ESC] Cancelar"
+        inst_surface = self.small_font.render(instructions, True, (180, 180, 180))
+        inst_rect = inst_surface.get_rect()
+        inst_rect.centerx = modal_rect.centerx
+        inst_rect.bottom = modal_rect.bottom - 10
+        self.screen.blit(inst_surface, inst_rect)
 
