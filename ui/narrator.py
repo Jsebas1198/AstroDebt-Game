@@ -88,7 +88,8 @@ class Narrator:
         self.time_since_last_char = 0.0
         
         # UI del diálogo
-        self.dialogue_box_rect = pygame.Rect(50, self.screen_height - 200, self.screen_width - 100, 150)
+        # Dejar espacio a la izquierda para el NPC helper (80px imagen + 20px margen = 100px extra)
+        self.dialogue_box_rect = pygame.Rect(150, self.screen_height - 200, self.screen_width - 200, 150)
         self.dialogue_alpha = 255
         self.is_fading = False
         
@@ -97,6 +98,35 @@ class Narrator:
         
         # Referencias
         self.event_manager = None
+        
+        # Mensajes contextuales para eventos
+        self.contextual_messages = {
+            'materials_success': [
+                "🪨 ¡Buen trabajo! Conseguimos materiales valiosos.",
+                "⛏️ ¡Excelente minería! Los materiales serán útiles.",
+                "💎 ¡Qué suerte! Encontraste materiales de calidad."
+            ],
+            'materials_fail': [
+                "😔 No fue tu mejor intento, pero algo es algo.",
+                "🤷 Al menos conseguiste algunos materiales.",
+                "💪 No te rindas, la próxima vez será mejor."
+            ],
+            'repair_success': [
+                "🔧 ¡Excelente! La nave está más estable.",
+                "⚙️ ¡Buen trabajo! La reparación fue exitosa.",
+                "🛠️ ¡Perfecto! Cada reparación nos acerca a casa."
+            ],
+            'oxygen_low': [
+                "⚠️ Cuidado, tu oxígeno está crítico.",
+                "🫧 ¡Alerta! Necesitas oxígeno pronto.",
+                "😰 El oxígeno se agota, considera un préstamo."
+            ],
+            'materials_low': [
+                "⚙️ Necesitas más materiales para reparar la nave.",
+                "🪨 Sin materiales no podrás avanzar.",
+                "⛏️ Es hora de minar más recursos."
+            ]
+        }
     
     def initialize(self) -> None:
         """Inicializa fuentes y recursos"""
@@ -120,6 +150,9 @@ class Narrator:
                 logger.debug("Helper image cargada")
         except Exception as e:
             logger.warning(f"No se pudo cargar helper image: {e}")
+        
+        # Configurar suscripciones a eventos
+        self._setup_event_subscriptions()
         
         logger.info("Narrator inicializado")
     
@@ -253,7 +286,9 @@ class Narrator:
         # Renderizar helper image si está disponible
         if self.helper_image and self.current_dialogue.dialogue_type == DialogueType.NARRATIVE:
             helper_rect = self.helper_image.get_rect()
-            helper_rect.bottomleft = (self.dialogue_box_rect.left - 90, self.dialogue_box_rect.bottom)
+            # Posicionar el helper completamente visible a la izquierda del cuadro de diálogo
+            # Con margen de 20px desde el borde izquierdo de la pantalla
+            helper_rect.bottomleft = (20, self.dialogue_box_rect.bottom)
             self.screen.blit(self.helper_image, helper_rect)
         
         # Renderizar nombre del hablante
@@ -418,6 +453,50 @@ class Narrator:
             lines.append(current_line)
         
         return lines
+    
+    def _setup_event_subscriptions(self) -> None:
+        """Configura las suscripciones a eventos"""
+        if not self.event_manager:
+            return
+        
+        from engine.events import EventType
+        
+        # Suscribir a eventos de minijuegos
+        self.event_manager.subscribe(EventType.MATERIALS_GAINED_SUCCESS, self._on_materials_success)
+        self.event_manager.subscribe(EventType.MATERIALS_GAINED_FAIL, self._on_materials_fail)
+        self.event_manager.subscribe(EventType.REPAIR_COMPLETED, self._on_repair_completed)
+        self.event_manager.subscribe(EventType.ALERT_OXYGEN, self._on_alert_oxygen)
+        self.event_manager.subscribe(EventType.ALERT_MATERIALS, self._on_alert_materials)
+    
+    def _on_materials_success(self, event) -> None:
+        """Maneja el evento de éxito en minería"""
+        import random
+        message = random.choice(self.contextual_messages['materials_success'])
+        self.show_quick_message(message, duration=3.0)
+    
+    def _on_materials_fail(self, event) -> None:
+        """Maneja el evento de fallo en minería"""
+        import random
+        message = random.choice(self.contextual_messages['materials_fail'])
+        self.show_quick_message(message, duration=3.0)
+    
+    def _on_repair_completed(self, event) -> None:
+        """Maneja el evento de reparación completada"""
+        import random
+        message = random.choice(self.contextual_messages['repair_success'])
+        self.show_quick_message(message, duration=3.0)
+    
+    def _on_alert_oxygen(self, event) -> None:
+        """Maneja la alerta de oxígeno bajo"""
+        import random
+        message = random.choice(self.contextual_messages['oxygen_low'])
+        self.show_quick_message(message, duration=4.0)
+    
+    def _on_alert_materials(self, event) -> None:
+        """Maneja la alerta de materiales bajos"""
+        import random
+        message = random.choice(self.contextual_messages['materials_low'])
+        self.show_quick_message(message, duration=3.5)
     
     def show_educational_tip(self, tip_type: str) -> None:
         """

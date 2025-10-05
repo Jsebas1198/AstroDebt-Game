@@ -250,7 +250,7 @@ class Renderer:
             if self.intro_animation_time < 2.0:
                 # Título apareciendo
                 title_font = pygame.font.Font(None, 72)
-                title = "NAVE VARADA"
+                title = "AstroDebt"
                 alpha = min(255, int(self.intro_animation_time * 127))
                 title_surface = title_font.render(title, True, (255, 255, 255))
                 title_surface.set_alpha(alpha)
@@ -278,7 +278,7 @@ class Renderer:
                 
                 # Título fijo
                 title_font = pygame.font.Font(None, 72)
-                title = "NAVE VARADA"
+                title = "AstroDebt"
                 title_surface = title_font.render(title, True, (255, 255, 255))
                 title_rect = title_surface.get_rect()
                 title_rect.centerx = self.screen_width // 2
@@ -324,7 +324,7 @@ class Renderer:
                 
                 # Título fijo
                 title_font = pygame.font.Font(None, 72)
-                title = "NAVE VARADA"
+                title = "AstroDebt"
                 title_surface = title_font.render(title, True, (255, 255, 255))
                 title_rect = title_surface.get_rect()
                 title_rect.centerx = self.screen_width // 2
@@ -364,7 +364,7 @@ class Renderer:
             title_font = pygame.font.Font(None, 72)
             subtitle_font = pygame.font.Font(None, 32)
             
-            title = "NAVE VARADA"
+            title = "AstroDebt"
             subtitle = "Un juego educativo sobre gestión de recursos"
             
             title_surface = title_font.render(title, True, (255, 255, 255))

@@ -1,5 +1,5 @@
 """
-Nave Varada - Juego Educativo sobre Finanzas
+AstroDebt - Juego Educativo sobre Finanzas
 Punto de entrada principal del juego
 
 El jugador debe reparar su nave espacial varada mientras gestiona
@@ -43,7 +43,7 @@ def load_config():
         # Configuración por defecto si falla la carga
         return {
             "game": {
-                "title": "Nave Varada",
+                "title": "AstroDebt",
                 "screen_width": 1280,
                 "screen_height": 720,
                 "fps": 60
@@ -62,7 +62,7 @@ def main():
     Función principal del juego
     Inicializa Pygame, crea las instancias necesarias y ejecuta el bucle principal
     """
-    logger.info("Iniciando Nave Varada...")
+    logger.info("Iniciando AstroDebt...")
     
     # Cargar configuración
     config = load_config()

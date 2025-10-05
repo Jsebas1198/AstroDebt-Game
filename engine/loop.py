@@ -4,10 +4,17 @@ Gestiona el flujo del juego, turnos, tiempo y fases
 """
 
 import pygame
+import random
 from typing import Optional, Dict, Any
 import logging
 from .state import GameState
 from .events import EventManager, EventType, Event
+from gameplay.minigames import (
+    MiningMinigame,
+    AsteroidShooterMinigame,
+    TimingMinigame,
+    WiringMinigame
+)
 
 logger = logging.getLogger(__name__)
 
@@ -299,9 +306,19 @@ class GameLoop:
         # Cambiar a fase de minijuego
         self.change_phase("minigame")
         
-        # Crear minijuego (se implementará más adelante)
-        # self.current_minigame = MiningMinigame()
-        logger.info("Minijuego de minería iniciado (pendiente de implementación)")
+        # Elegir aleatoriamente entre los dos minijuegos de minería
+        mining_games = [MiningMinigame, AsteroidShooterMinigame]
+        selected_game = random.choice(mining_games)
+        
+        # Crear el minijuego seleccionado
+        self.current_minigame = selected_game(self.screen.get_width(), self.screen.get_height())
+        
+        # Mostrar notificación del minijuego
+        game_name = "Mining Clicker" if selected_game == MiningMinigame else "Asteroid Shooter"
+        if self.hud:
+            self.hud.add_notification(f"Iniciando: {game_name}", "info")
+        
+        logger.info(f"Minijuego de minería iniciado: {game_name}")
     
     def start_repair_minigame(self) -> None:
         """Inicia el minijuego de reparación"""
@@ -315,22 +332,89 @@ class GameLoop:
                 self.hud.add_notification("Materiales insuficientes para reparar", "warning")
             return
         
-        # Consumir oxígeno
+        # Consumir oxígeno y materiales
         self.game_state.update_oxygen(-self.game_state.oxygen_cost_repair)
+        materials_cost = random.randint(5, 10)
+        self.game_state.consume_materials(materials_cost)
         
         # Cambiar a fase de minijuego
         self.change_phase("minigame")
         
-        # Crear minijuego (se implementará más adelante)
-        # self.current_minigame = TimingMinigame()
-        logger.info("Minijuego de reparación iniciado (pendiente de implementación)")
+        # Elegir aleatoriamente entre los dos minijuegos de reparación
+        repair_games = [TimingMinigame, WiringMinigame]
+        selected_game = random.choice(repair_games)
+        
+        # Crear el minijuego seleccionado
+        self.current_minigame = selected_game(self.screen.get_width(), self.screen.get_height())
+        
+        # Mostrar notificación del minijuego
+        game_name = "Timing Precision" if selected_game == TimingMinigame else "Wiring Puzzle"
+        if self.hud:
+            self.hud.add_notification(f"Iniciando: {game_name}", "info")
+        
+        logger.info(f"Minijuego de reparación iniciado: {game_name}")
     
     def _complete_minigame(self) -> None:
         """Completa el minijuego actual y vuelve al juego principal"""
         if self.current_minigame:
-            # Procesar resultados del minijuego
-            # (se implementará con los minijuegos)
-            pass
+            # Obtener resultados del minijuego
+            results = self.current_minigame.get_results()
+            
+            # Procesar recompensas de materiales
+            if results['reward_materials'] > 0:
+                self.game_state.add_materials(results['reward_materials'])
+                
+                # Emitir evento según el éxito
+                if results['success']:
+                    self.event_manager.emit_quick(
+                        EventType.MATERIALS_GAINED_SUCCESS,
+                        {'amount': results['reward_materials']}
+                    )
+                    if self.hud:
+                        self.hud.add_notification(
+                            f"¡Obtuviste {results['reward_materials']} materiales!",
+                            "success"
+                        )
+                else:
+                    self.event_manager.emit_quick(
+                        EventType.MATERIALS_GAINED_FAIL,
+                        {'amount': results['reward_materials']}
+                    )
+                    if self.hud:
+                        self.hud.add_notification(
+                            f"Solo conseguiste {results['reward_materials']} materiales",
+                            "warning"
+                        )
+            
+            # Procesar recompensas de reparación
+            if results['reward_repair'] != 0:
+                self.game_state.update_repair_progress(results['reward_repair'])
+                
+                # Emitir evento de progreso de reparación
+                self.event_manager.emit_quick(
+                    EventType.REPAIR_PROGRESS_CHANGED,
+                    {'progress': self.game_state.repair_progress}
+                )
+                
+                if results['reward_repair'] > 0:
+                    if self.hud:
+                        self.hud.add_notification(
+                            f"Reparación: +{results['reward_repair']}%",
+                            "success"
+                        )
+                else:
+                    if self.hud:
+                        self.hud.add_notification(
+                            f"¡La nave sufrió daños! {results['reward_repair']}%",
+                            "error"
+                        )
+            
+            # Verificar alertas de recursos
+            if self.game_state.oxygen <= 20:
+                self.event_manager.emit_quick(EventType.ALERT_OXYGEN, {})
+            
+            if self.game_state.materials == 0:
+                self.event_manager.emit_quick(EventType.ALERT_MATERIALS, {})
         
         self.current_minigame = None
         self.change_phase("main_game")
