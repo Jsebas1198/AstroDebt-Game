@@ -401,30 +401,38 @@ class GameLoop:
             # Obtener resultados del minijuego
             results = self.current_minigame.get_results()
             
-            # Procesar recompensas de materiales
-            if results['reward_materials'] > 0:
-                self.game_state.add_materials(results['reward_materials'])
-                
-                # Emitir evento según el éxito
-                if results['success']:
-                    self.event_manager.emit_quick(
-                        EventType.MATERIALS_GAINED_SUCCESS,
-                        {'amount': results['reward_materials']}
+            # Procesar recompensas de materiales (siempre procesar, incluso si es 0)
+            materials_gained = results['reward_materials']
+            
+            if materials_gained > 0:
+                self.game_state.add_materials(materials_gained)
+            
+            # Emitir evento y notificación según el éxito
+            if results['success']:
+                self.event_manager.emit_quick(
+                    EventType.MATERIALS_GAINED_SUCCESS,
+                    {'amount': materials_gained}
+                )
+                if self.hud:
+                    self.hud.add_notification(
+                        f"¡Éxito! Obtuviste {materials_gained} materiales",
+                        "success"
                     )
-                    if self.hud:
+            else:
+                self.event_manager.emit_quick(
+                    EventType.MATERIALS_GAINED_FAIL,
+                    {'amount': materials_gained}
+                )
+                if self.hud:
+                    if materials_gained > 0:
                         self.hud.add_notification(
-                            f"¡Obtuviste {results['reward_materials']} materiales!",
-                            "success"
-                        )
-                else:
-                    self.event_manager.emit_quick(
-                        EventType.MATERIALS_GAINED_FAIL,
-                        {'amount': results['reward_materials']}
-                    )
-                    if self.hud:
-                        self.hud.add_notification(
-                            f"Solo conseguiste {results['reward_materials']} materiales",
+                            f"Recolectaste {materials_gained} materiales (objetivo no alcanzado)",
                             "warning"
+                        )
+                    else:
+                        self.hud.add_notification(
+                            "No recolectaste materiales",
+                            "error"
                         )
             
             # Procesar recompensas de reparación
