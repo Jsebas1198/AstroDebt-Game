@@ -148,6 +148,10 @@ class GameLoop:
         if self.renderer and hasattr(self.renderer, 'update'):
             self.renderer.update(delta_time)
         
+        # Actualizar animación de prestamista
+        if self.renderer:
+            self.renderer.update_lender(delta_time)
+        
         # Actualizar componentes UI
         if self.hud:
             self.hud.update(delta_time)
@@ -272,7 +276,18 @@ class GameLoop:
     def _handle_main_game_events(self, event: pygame.event.Event) -> None:
         """Maneja eventos durante la fase principal del juego"""
         if event.type == pygame.KEYDOWN:
-            # Atajos de teclado para acciones
+            # Si el prestamista está visible esperando input, solo permitir continuar
+            if self.renderer and self.renderer.lender_waiting_for_input:
+                if event.key == pygame.K_SPACE:
+                    # Ocultar prestamista y cerrar narrador
+                    self.renderer.dismiss_lender()
+                    if self.narrator:
+                        self.narrator.is_active = False
+                        self.narrator.current_dialogue = None
+                    logger.info("Jugador continuó después de ver prestamista")
+                return  # No procesar otras teclas mientras el prestamista está visible
+            
+            # Atajos de teclado para acciones (solo si no hay prestamista visible)
             if event.key == pygame.K_m:
                 # Minar materiales
                 self.start_mining_minigame()
@@ -315,8 +330,10 @@ class GameLoop:
                 self.hud.add_notification("Oxígeno insuficiente para minar", "warning")
             return
         
-        # Consumir oxígeno
-        self.game_state.update_oxygen(-self.game_state.oxygen_cost_mining)
+        # Consumir oxígeno (aleatorio entre 12-15)
+        oxygen_consumed = random.randint(12, 15)
+        self.game_state.update_oxygen(-oxygen_consumed)
+        logger.info(f"Oxígeno consumido en minería: {oxygen_consumed}")
         
         # Cambiar a fase de minijuego
         self.change_phase("minigame")
@@ -360,8 +377,11 @@ class GameLoop:
                 self.hud.add_notification("Materiales insuficientes para reparar", "warning")
             return
         
-        # Consumir oxígeno y materiales
-        self.game_state.update_oxygen(-self.game_state.oxygen_cost_repair)
+        # Consumir oxígeno (aleatorio entre 12-15) y materiales
+        oxygen_consumed = random.randint(12, 15)
+        self.game_state.update_oxygen(-oxygen_consumed)
+        logger.info(f"Oxígeno consumido en reparación: {oxygen_consumed}")
+        
         materials_cost = random.randint(5, 10)
         self.game_state.consume_materials(materials_cost)
         
@@ -467,6 +487,45 @@ class GameLoop:
         
         self.current_minigame = None
         self.change_phase("main_game")
+        
+        # Verificar si mostrar prestamista (educativo)
+        self._check_lender_appearance()
+    
+    def _check_lender_appearance(self) -> None:
+        """
+        Verifica si debe aparecer el prestamista aleatorio (educativo)
+        Solo aparece una vez cuando el oxígeno < 90
+        """
+        if self.game_state.oxygen < 90 and not self.game_state.prestamista_shown:
+            self.game_state.prestamista_shown = True
+            
+            # Elegir prestamista aleatorio
+            lenders = ['zorvax', 'ktarr', 'consorcio']
+            selected_lender = random.choice(lenders)
+            
+            # Mensajes educativos según prestamista
+            messages = {
+                'zorvax': "Un prestamista Zorvax se aproxima... Todavía tienes suficiente oxígeno, no hace falta un crédito ahora, pero cuidado de no agotarlo.",
+                'ktarr': "Un comerciante Ktarr observa desde lejos... Todavía tienes suficiente oxígeno, no hace falta un crédito ahora, pero cuidado de no agotarlo.",
+                'consorcio': "El Consorcio Galáctico te está monitoreando... Todavía tienes suficiente oxígeno, no hace falta un crédito ahora, pero cuidado de no agotarlo."
+            }
+            
+            # Mostrar prestamista visualmente en la escena
+            if self.renderer:
+                self.renderer.show_lender(selected_lender)
+            
+            # Mostrar mensaje del narrador
+            if self.narrator:
+                self.narrator.show_narrative(messages.get(selected_lender, messages['consorcio']))
+            
+            # Notificación en HUD
+            if self.hud:
+                self.hud.add_notification(
+                    f"⚠️ Prestamista {selected_lender.upper()} detectado",
+                    "warning"
+                )
+            
+            logger.info(f"Prestamista aleatorio aparecido: {selected_lender} (Oxígeno: {self.game_state.oxygen:.1f})")
     
     def _restart_game(self) -> None:
         """Reinicia el juego"""

@@ -69,6 +69,12 @@ class Renderer:
         self.show_return_home_button = False
         self.victory_animation_complete = False
         
+        # Sistema de prestamista visual
+        self.lender_visible = False
+        self.lender_type = None  # 'zorvax', 'ktarr', 'consorcio'
+        self.lender_animation_time = 0.0
+        self.lender_waiting_for_input = False  # Esperando que jugador presione continuar
+        
         # Referencias
         self.game_state = None
     
@@ -124,6 +130,10 @@ class Renderer:
         self.screen.blit(self.game_layer, (offset_x, offset_y))
         self.screen.blit(self.effect_layer, (0, 0))
         self.screen.blit(self.ui_layer, (0, 0))
+        
+        # Renderizar prestamista si está visible (sobre todo)
+        if self.lender_visible:
+            self.render_lender()
     
     def render_background(self) -> None:
         """Renderiza el fondo espacial con estrellas"""
@@ -800,6 +810,115 @@ class Renderer:
         self.victory_animation_time = 0.0
         logger.info("Iniciando animación de victoria - despegue hacia la Tierra")
     
+    def show_lender(self, lender_type: str) -> None:
+        """
+        Muestra un prestamista en la escena
+        
+        Args:
+            lender_type: Tipo de prestamista ('zorvax', 'ktarr', 'consorcio')
+        """
+        self.lender_visible = True
+        self.lender_type = lender_type
+        self.lender_animation_time = 0.0
+        self.lender_waiting_for_input = False
+        logger.info(f"Prestamista {lender_type} apareciendo en escena")
+    
+    def update_lender(self, delta_time: float) -> None:
+        """Actualiza la animación del prestamista"""
+        if self.lender_visible:
+            self.lender_animation_time += delta_time
+            
+            # Después de la animación de entrada (0.5s), esperar input del jugador
+            if self.lender_animation_time >= 0.5:
+                self.lender_waiting_for_input = True
+    
+    def dismiss_lender(self) -> None:
+        """Oculta el prestamista cuando el jugador presiona continuar"""
+        self.lender_visible = False
+        self.lender_type = None
+        self.lender_animation_time = 0.0
+        self.lender_waiting_for_input = False
+        logger.info("Prestamista desapareciendo de escena")
+    
+    def render_lender(self) -> None:
+        """Renderiza el prestamista en la escena"""
+        if not self.lender_type:
+            return
+        
+        # Mapear tipo a asset
+        asset_map = {
+            'zorvax': 'zorvax_alien',
+            'ktarr': 'ktarr_alien',
+            'consorcio': 'alien'
+        }
+        
+        asset_key = asset_map.get(self.lender_type, 'alien')
+        
+        if asset_key not in self.assets:
+            logger.warning(f"Asset {asset_key} no encontrado para prestamista")
+            return
+        
+        # Obtener imagen
+        lender_image = self.assets[asset_key]
+        
+        # Animación de entrada (deslizar desde la derecha solo los primeros 0.5s)
+        progress = min(1.0, self.lender_animation_time / 0.5)
+        ease_progress = 1 - (1 - progress) ** 3  # Ease out
+        
+        # Posición: desde fuera de pantalla derecha hacia el centro-derecha
+        start_x = self.screen_width + 100
+        end_x = self.screen_width - 200
+        lender_x = start_x - ((start_x - end_x) * ease_progress)
+        lender_y = self.screen_height // 2
+        
+        # Renderizar imagen
+        rect = lender_image.get_rect()
+        rect.center = (int(lender_x), lender_y)
+        
+        # Fondo semi-transparente para destacar
+        overlay = pygame.Surface((rect.width + 40, rect.height + 40))
+        overlay.fill((20, 20, 40))
+        overlay.set_alpha(180)
+        overlay_rect = overlay.get_rect()
+        overlay_rect.center = rect.center
+        self.screen.blit(overlay, overlay_rect)
+        
+        # Dibujar prestamista
+        self.screen.blit(lender_image, rect)
+        
+        # Texto identificador
+        font_large = pygame.font.Font(None, 36)
+        name_text = self.lender_type.upper()
+        name_surface = font_large.render(name_text, True, (255, 215, 0))
+        name_rect = name_surface.get_rect()
+        name_rect.centerx = rect.centerx
+        name_rect.top = rect.bottom + 10
+        self.screen.blit(name_surface, name_rect)
+        
+        # Si está esperando input, mostrar instrucción parpadeante
+        if self.lender_waiting_for_input:
+            # Efecto parpadeante
+            alpha = int((math.sin(self.lender_animation_time * 3) + 1) * 127.5)
+            
+            font_small = pygame.font.Font(None, 28)
+            continue_text = "[ESPACIO] Continuar"
+            continue_surface = font_small.render(continue_text, True, (255, 255, 255))
+            continue_surface.set_alpha(alpha)
+            
+            continue_rect = continue_surface.get_rect()
+            continue_rect.centerx = self.screen_width // 2
+            continue_rect.bottom = self.screen_height - 50
+            
+            # Fondo para el texto
+            bg_surface = pygame.Surface((continue_rect.width + 20, continue_rect.height + 10))
+            bg_surface.fill((50, 50, 50))
+            bg_surface.set_alpha(200)
+            bg_rect = bg_surface.get_rect()
+            bg_rect.center = continue_rect.center
+            
+            self.screen.blit(bg_surface, bg_rect)
+            self.screen.blit(continue_surface, continue_rect)
+    
     def reset_animations(self) -> None:
         """Resetea todas las animaciones del renderer"""
         # Animaciones de intro
@@ -813,6 +932,12 @@ class Renderer:
         self.victory_animation_active = False
         self.show_return_home_button = False
         self.victory_animation_complete = False
+        
+        # Prestamista
+        self.lender_visible = False
+        self.lender_type = None
+        self.lender_animation_time = 0.0
+        self.lender_waiting_for_input = False
         
         # Resetear shake
         self.reset_shake()

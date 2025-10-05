@@ -46,10 +46,13 @@ class GameState:
     victory: bool = False
     game_over_reason: str = ""
     
-    # Costos por acción (sistema de turnos)
-    oxygen_cost_mining: float = 2.0
-    oxygen_cost_repair: float = 3.0
+    # Costos por acción (incrementados para más desafío)
+    oxygen_cost_mining: float = 12.0  # 12-15 consumo aleatorio
+    oxygen_cost_repair: float = 12.0  # 12-15 consumo aleatorio
     oxygen_cost_per_turn: float = 1.0  # Costo base por turno
+    
+    # Sistema de prestamista
+    prestamista_shown: bool = False  # Flag para mostrar prestamista solo una vez
     
     # Referencias a otros managers (se inicializan después)
     loan_manager = None
