@@ -61,6 +61,7 @@ class Renderer:
         self.ship_animation_time = 0.0
         self.intro_animation_time = 0.0
         self.intro_complete = False
+        self.impact_shake_applied = False  # Para aplicar shake solo una vez
         
         # Referencias
         self.game_state = None
@@ -99,20 +100,20 @@ class Renderer:
         # Renderizar fondo
         self.render_background()
         
-        # Renderizar elementos del juego
-        self.render_ship()
+        # Renderizar elementos del juego EN ORDEN (fondo a frente)
+        # 1. Primero el terreno/luna (al fondo)
         self.render_environment()
+        # 2. Luego nave y jugador (sobre el terreno)
+        self.render_ship()
         
         # Renderizar efectos
         self.render_effects()
         
-        # Aplicar shake si está activo
+        # NO aplicar shake durante el juego normal
+        # El shake solo debe aplicarse durante la intro o eventos críticos
         offset_x, offset_y = 0, 0
-        if self.shake_intensity > 0:
-            offset_x = random.randint(-int(self.shake_intensity * 10), int(self.shake_intensity * 10))
-            offset_y = random.randint(-int(self.shake_intensity * 10), int(self.shake_intensity * 10))
         
-        # Componer capas en pantalla
+        # Componer capas en pantalla SIN shake
         self.screen.blit(self.background_layer, (offset_x, offset_y))
         self.screen.blit(self.game_layer, (offset_x, offset_y))
         self.screen.blit(self.effect_layer, (0, 0))
@@ -140,15 +141,18 @@ class Renderer:
             pygame.draw.circle(self.background_layer, (brightness, brightness, brightness), (x, y), size)
     
     def render_ship(self) -> None:
-        """Renderiza la nave espacial del jugador"""
+        """Renderiza la nave espacial del jugador SOBRE la luna"""
         if 'blue_spaceship' not in self.assets:
             return
         
         ship = self.assets['blue_spaceship']
         
-        # Posición de la nave
-        ship_x = self.screen_width // 2 - 200
-        ship_y = self.screen_height // 2
+        # Posición de la nave SOBRE la luna
+        ship_x = self.screen_width // 2 - 60
+        # La luna está en screen_height - 50 (bottom), con altura ~150
+        # Queremos que la nave esté sobre la luna
+        base_moon_top = self.screen_height - 200  # Aproximadamente el top de la luna
+        ship_y = base_moon_top - 30  # 30px sobre la superficie lunar
         
         # Aplicar efecto de daño según el progreso de reparación
         if self.game_state:
@@ -158,44 +162,48 @@ class Renderer:
             if repair_percent < 0.5:
                 ship_copy = ship.copy()
                 # Aplicar tinte rojo
-                red_overlay = pygame.Surface(ship.get_size())
-                red_overlay.fill((255, 0, 0))
-                red_overlay.set_alpha(int(100 * (1 - repair_percent * 2)))
-                ship_copy.blit(red_overlay, (0, 0))
+                red_overlay = pygame.Surface(ship.get_size(), pygame.SRCALPHA)
+                red_overlay.fill((255, 0, 0, int(100 * (1 - repair_percent * 2))))
+                ship_copy.blit(red_overlay, (0, 0), special_flags=pygame.BLEND_RGBA_MULT)
                 ship = ship_copy
             
-            # Animación de flotación
+            # Animación de flotación suave
             self.ship_animation_time += 0.02
-            float_offset = math.sin(self.ship_animation_time) * 5
+            float_offset = math.sin(self.ship_animation_time) * 3
             ship_y += int(float_offset)
         
-        # Dibujar nave
-        ship_rect = ship.get_rect()
-        ship_rect.center = (ship_x, ship_y)
-        self.game_layer.blit(ship, ship_rect)
+        # Dibujar nave inclinada (como si estuviera estrellada)
+        ship_rotated = pygame.transform.rotate(ship, 8)  # Leve inclinación
+        ship_rect = ship_rotated.get_rect()
+        ship_rect.centerx = ship_x
+        ship_rect.bottom = int(ship_y) + 50  # bottom en lugar de center para mejor posicionamiento
+        self.game_layer.blit(ship_rotated, ship_rect)
         
-        # Dibujar jugador cerca de la nave
+        # Dibujar jugador cerca de la nave, SOBRE la luna
         if 'player' in self.assets:
             player = self.assets['player']
             player_rect = player.get_rect()
-            player_rect.center = (ship_x + 100, ship_y + 50)
+            player_rect.centerx = ship_x + 80
+            player_rect.bottom = int(ship_y) + 70  # Al lado y un poco más abajo que la nave
             self.game_layer.blit(player, player_rect)
     
     def render_environment(self) -> None:
-        """Renderiza el terreno lunar y elementos del entorno"""
-        # Dibujar superficie lunar
+        """Renderiza el terreno lunar y elementos del entorno (CAPA DE FONDO)"""
+        # Dibujar superficie lunar EN LA CAPA DE FONDO
         if 'landing_moon' in self.assets:
             moon = self.assets['landing_moon']
             moon_rect = moon.get_rect()
             moon_rect.bottom = self.screen_height - 50
-            moon_rect.centerx = self.screen_width // 2 - 100
+            moon_rect.centerx = self.screen_width // 2
             self.game_layer.blit(moon, moon_rect)
         
-        # Dibujar minerales decorativos (solo visual)
+        # Dibujar minerales decorativos SOBRE la luna (solo visual)
         mineral_assets = ['copper_mineral', 'silver_mineral', 'gold_mineral']
-        positions = [(200, self.screen_height - 100), 
-                    (400, self.screen_height - 120),
-                    (600, self.screen_height - 90)]
+        # Posiciones relativas a la superficie de la luna
+        base_y = self.screen_height - 150  # Un poco sobre la luna
+        positions = [(300, base_y), 
+                    (500, base_y - 10),
+                    (700, base_y + 5)]
         
         for i, mineral_name in enumerate(mineral_assets):
             if mineral_name in self.assets and i < len(positions):
@@ -219,75 +227,204 @@ class Renderer:
                                (0, 0, self.screen_width, self.screen_height), 3)
     
     def render_intro(self) -> None:
-        """Renderiza la pantalla de introducción con animación"""
+        """Renderiza la pantalla de introducción con animación mejorada"""
         if not self.screen:
             return
         
-        # Fondo
-        self.render_background()
+        # Crear superficie temporal para evitar problemas de shake
+        intro_surface = pygame.Surface((self.screen_width, self.screen_height))
         
-        # Título del juego
-        title_font = pygame.font.Font(None, 72)
-        subtitle_font = pygame.font.Font(None, 36)
+        # Renderizar fondo en la superficie temporal
+        if 'space_background' in self.assets:
+            bg = self.assets['space_background']
+            bg_scaled = pygame.transform.scale(bg, (self.screen_width, self.screen_height))
+            intro_surface.blit(bg_scaled, (0, 0))
+        else:
+            intro_surface.fill((10, 10, 30))
         
-        title = "NAVE VARADA"
-        subtitle = "Un juego educativo sobre gestión de recursos"
-        
-        title_surface = title_font.render(title, True, (255, 255, 255))
-        subtitle_surface = subtitle_font.render(subtitle, True, (200, 200, 200))
-        
-        title_rect = title_surface.get_rect()
-        title_rect.centerx = self.screen_width // 2
-        title_rect.centery = 200
-        
-        subtitle_rect = subtitle_surface.get_rect()
-        subtitle_rect.centerx = self.screen_width // 2
-        subtitle_rect.centery = 260
-        
-        self.screen.blit(title_surface, title_rect)
-        self.screen.blit(subtitle_surface, subtitle_rect)
-        
-        # Animación de crash (si no se ha completado)
+        # Animación de crash
         if not self.intro_complete:
-            self.intro_animation_time += 0.02
+            self.intro_animation_time += 0.016  # ~60fps
             
+            # Fase 1: Nave entrando desde la derecha (0-2 segundos)
+            if self.intro_animation_time < 2.0:
+                # Título apareciendo
+                title_font = pygame.font.Font(None, 72)
+                title = "NAVE VARADA"
+                alpha = min(255, int(self.intro_animation_time * 127))
+                title_surface = title_font.render(title, True, (255, 255, 255))
+                title_surface.set_alpha(alpha)
+                title_rect = title_surface.get_rect()
+                title_rect.centerx = self.screen_width // 2
+                title_rect.y = 50
+                intro_surface.blit(title_surface, title_rect)
+                
+                # Nave entrando
+                if 'blue_spaceship' in self.assets:
+                    ship = self.assets['blue_spaceship']
+                    # Nave entra desde la derecha
+                    ship_x = self.screen_width + 100 - (self.intro_animation_time * 400)
+                    ship_y = 200 + (self.intro_animation_time * 150)
+                    ship_rotation = -5 - (self.intro_animation_time * 5)
+                    
+                    ship_rotated = pygame.transform.rotate(ship, ship_rotation)
+                    ship_rect = ship_rotated.get_rect()
+                    ship_rect.center = (int(ship_x), int(ship_y))
+                    intro_surface.blit(ship_rotated, ship_rect)
+            
+            # Fase 2: Impacto y nave estrellada (2-3 segundos)
+            elif self.intro_animation_time < 3.0:
+                time_in_phase = self.intro_animation_time - 2.0
+                
+                # Título fijo
+                title_font = pygame.font.Font(None, 72)
+                title = "NAVE VARADA"
+                title_surface = title_font.render(title, True, (255, 255, 255))
+                title_rect = title_surface.get_rect()
+                title_rect.centerx = self.screen_width // 2
+                title_rect.y = 50
+                intro_surface.blit(title_surface, title_rect)
+                
+                # Luna en el suelo
+                if 'landing_moon' in self.assets:
+                    moon = self.assets['landing_moon']
+                    moon_rect = moon.get_rect()
+                    moon_rect.bottom = self.screen_height - 30
+                    moon_rect.centerx = self.screen_width // 2
+                    intro_surface.blit(moon, moon_rect)
+                
+                # Nave estrellada sobre la luna
+                if 'blue_spaceship' in self.assets:
+                    ship = self.assets['blue_spaceship']
+                    ship_rotated = pygame.transform.rotate(ship, 15)  # Inclinada
+                    ship_rect = ship_rotated.get_rect()
+                    ship_rect.centerx = self.screen_width // 2 - 50
+                    ship_rect.bottom = self.screen_height - 150  # SOBRE la luna
+                    intro_surface.blit(ship_rotated, ship_rect)
+                
+                # Efecto de impacto (partículas simples)
+                if time_in_phase < 0.5:
+                    import random
+                    for _ in range(10):
+                        particle_x = (self.screen_width // 2 - 50) + random.randint(-30, 30)
+                        particle_y = (self.screen_height - 150) + random.randint(-20, 20)
+                        particle_size = random.randint(2, 5)
+                        color = (255, random.randint(150, 255), random.randint(50, 150))
+                        pygame.draw.circle(intro_surface, color, (particle_x, particle_y), particle_size)
+                    
+                    # Aplicar shake SOLO una vez al inicio del impacto
+                    if not self.impact_shake_applied:
+                        self.apply_screen_shake(0.8, 0.4)
+                        self.impact_shake_applied = True
+            
+            # Fase 3: Astronauta aparece (3+ segundos)
+            else:
+                self.intro_complete = True
+                time_in_phase = self.intro_animation_time - 3.0
+                
+                # Título fijo
+                title_font = pygame.font.Font(None, 72)
+                title = "NAVE VARADA"
+                title_surface = title_font.render(title, True, (255, 255, 255))
+                title_rect = title_surface.get_rect()
+                title_rect.centerx = self.screen_width // 2
+                title_rect.y = 50
+                intro_surface.blit(title_surface, title_rect)
+                
+                # Luna
+                if 'landing_moon' in self.assets:
+                    moon = self.assets['landing_moon']
+                    moon_rect = moon.get_rect()
+                    moon_rect.bottom = self.screen_height - 30
+                    moon_rect.centerx = self.screen_width // 2
+                    intro_surface.blit(moon, moon_rect)
+                
+                # Nave estrellada SOBRE la luna
+                if 'blue_spaceship' in self.assets:
+                    ship = self.assets['blue_spaceship']
+                    ship_rotated = pygame.transform.rotate(ship, 15)
+                    ship_rect = ship_rotated.get_rect()
+                    ship_rect.centerx = self.screen_width // 2 - 50
+                    ship_rect.bottom = self.screen_height - 150  # SOBRE la luna
+                    intro_surface.blit(ship_rotated, ship_rect)
+                
+                # Astronauta apareciendo SOBRE la luna
+                if 'player' in self.assets:
+                    player = self.assets['player']
+                    # Astronauta baja desde la nave
+                    player_y = max(self.screen_height - 120, self.screen_height - 200 + (time_in_phase * 80))
+                    player_rect = player.get_rect()
+                    player_rect.centerx = self.screen_width // 2 + 30
+                    player_rect.bottom = int(player_y)
+                    intro_surface.blit(player, player_rect)
+        
+        # Escena completa (después de la animación)
+        else:
+            # Fondo con título
+            title_font = pygame.font.Font(None, 72)
+            subtitle_font = pygame.font.Font(None, 32)
+            
+            title = "NAVE VARADA"
+            subtitle = "Un juego educativo sobre gestión de recursos"
+            
+            title_surface = title_font.render(title, True, (255, 255, 255))
+            subtitle_surface = subtitle_font.render(subtitle, True, (200, 200, 200))
+            
+            title_rect = title_surface.get_rect()
+            title_rect.centerx = self.screen_width // 2
+            title_rect.y = 50
+            
+            subtitle_rect = subtitle_surface.get_rect()
+            subtitle_rect.centerx = self.screen_width // 2
+            subtitle_rect.y = 120
+            
+            intro_surface.blit(title_surface, title_rect)
+            intro_surface.blit(subtitle_surface, subtitle_rect)
+            
+            # Luna
+            if 'landing_moon' in self.assets:
+                moon = self.assets['landing_moon']
+                moon_rect = moon.get_rect()
+                moon_rect.bottom = self.screen_height - 30
+                moon_rect.centerx = self.screen_width // 2
+                intro_surface.blit(moon, moon_rect)
+            
+            # Nave estrellada SOBRE la luna
             if 'blue_spaceship' in self.assets:
                 ship = self.assets['blue_spaceship']
-                
-                # Calcular posición de la nave cayendo
-                ship_x = self.screen_width // 2
-                ship_y = int(100 + self.intro_animation_time * 50)
-                
-                if ship_y < self.screen_height - 200:
-                    # Nave cayendo
-                    ship_rotated = pygame.transform.rotate(ship, self.intro_animation_time * 10)
-                    ship_rect = ship_rotated.get_rect()
-                    ship_rect.center = (ship_x, ship_y)
-                    self.screen.blit(ship_rotated, ship_rect)
-                else:
-                    # Nave estrellada
-                    self.intro_complete = True
-                    ship_rect = ship.get_rect()
-                    ship_rect.center = (ship_x, self.screen_height - 200)
-                    self.screen.blit(ship, ship_rect)
-                    
-                    # Aplicar shake al estrellarse
-                    self.apply_screen_shake(0.5, 0.5)
-        
-        # Botón de inicio
-        if 'start_button' in self.assets and self.intro_complete:
-            button = self.assets['start_button']
-            button_rect = button.get_rect()
-            button_rect.center = (self.screen_width // 2, 400)
-            self.screen.blit(button, button_rect)
-        else:
-            # Botón de texto si no hay asset
+                ship_rotated = pygame.transform.rotate(ship, 15)
+                ship_rect = ship_rotated.get_rect()
+                ship_rect.centerx = self.screen_width // 2 - 50
+                ship_rect.bottom = self.screen_height - 150  # SOBRE la luna
+                intro_surface.blit(ship_rotated, ship_rect)
+            
+            # Astronauta SOBRE la luna
+            if 'player' in self.assets:
+                player = self.assets['player']
+                player_rect = player.get_rect()
+                player_rect.centerx = self.screen_width // 2 + 30
+                player_rect.bottom = self.screen_height - 120  # SOBRE la luna
+                intro_surface.blit(player, player_rect)
+            
+            # Botón de inicio
             button_font = pygame.font.Font(None, 36)
-            button_text = "[ESPACIO] Comenzar" if self.intro_complete else "Cargando..."
+            button_text = "[ESPACIO] Comenzar"
             button_surface = button_font.render(button_text, True, (255, 255, 100))
             button_rect = button_surface.get_rect()
-            button_rect.center = (self.screen_width // 2, 400)
-            self.screen.blit(button_surface, button_rect)
+            button_rect.centerx = self.screen_width // 2
+            button_rect.bottom = self.screen_height - 50
+            
+            # Fondo del botón para mejor visibilidad
+            button_bg = pygame.Surface((button_rect.width + 20, button_rect.height + 10))
+            button_bg.fill((50, 50, 50))
+            button_bg.set_alpha(200)
+            button_bg_rect = button_bg.get_rect()
+            button_bg_rect.center = button_rect.center
+            intro_surface.blit(button_bg, button_bg_rect)
+            intro_surface.blit(button_surface, button_rect)
+        
+        # Dibujar la superficie temporal en la pantalla principal (SIN shake)
+        self.screen.blit(intro_surface, (0, 0))
     
     def render_end_screen(self) -> None:
         """Renderiza la pantalla final (victoria o derrota)"""
@@ -381,12 +518,21 @@ class Renderer:
         Args:
             delta_time: Tiempo transcurrido
         """
-        # Actualizar shake
+        # Actualizar shake solo durante la intro
         if self.shake_duration > 0:
             self.shake_duration -= delta_time
+            # Reducir intensidad gradualmente
+            self.shake_intensity *= 0.9
+            
             if self.shake_duration <= 0:
                 self.shake_intensity = 0.0
                 self.shake_duration = 0.0
+    
+    def reset_shake(self) -> None:
+        """Resetea completamente el efecto de shake"""
+        self.shake_intensity = 0.0
+        self.shake_duration = 0.0
+        self.camera_offset = [0, 0]
     
     def _load_assets(self) -> None:
         """Carga todos los assets del juego"""

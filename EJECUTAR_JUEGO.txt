@@ -1,0 +1,92 @@
+╔═══════════════════════════════════════════════════════════╗
+║          🚀 CÓMO EJECUTAR NAVE VARADA - RÁPIDO           ║
+╚═══════════════════════════════════════════════════════════╝
+
+══════════════════════════════════════════════════════════════
+📌 MÉTODO MÁS SIMPLE (RECOMENDADO)
+══════════════════════════════════════════════════════════════
+
+1. Abre una terminal en la carpeta del proyecto
+2. Ejecuta:
+
+   python main.py
+
+   ¡Listo! El juego debería iniciar.
+
+══════════════════════════════════════════════════════════════
+⚡ SI ES TU PRIMERA VEZ
+══════════════════════════════════════════════════════════════
+
+Si no tienes las dependencias instaladas:
+
+   pip install pygame
+
+Luego ejecuta:
+
+   python main.py
+
+══════════════════════════════════════════════════════════════
+🎮 CONTROLES DEL JUEGO
+══════════════════════════════════════════════════════════════
+
+Durante la INTRO:
+  [ESPACIO]  - Saltar animación / Comenzar juego
+
+Durante el JUEGO:
+  [M]        - Minar materiales (costo: 2 oxígeno)
+  [R]        - Reparar nave (costo: 3 oxígeno + materiales)
+  [I]        - Ver inventario
+  [D]        - Ver deudas activas
+  [P]        - Ver progreso de reparación
+  [ESPACIO]  - Avanzar diálogos
+  [ESC]      - Cerrar paneles / Salir
+
+══════════════════════════════════════════════════════════════
+🎯 OBJETIVO DEL JUEGO
+══════════════════════════════════════════════════════════════
+
+✓ Reparar tu nave al 100%
+✓ Gestionar oxígeno (tu "dinero")
+✓ Obtener materiales (tu "trabajo")
+✓ Manejar préstamos sabiamente
+
+══════════════════════════════════════════════════════════════
+✨ MEJORAS RECIENTES (2025-10-05) - ACTUALIZADO
+══════════════════════════════════════════════════════════════
+
+✅ Intro animada con nave estrellándose (3 fases)
+✅ Nave y astronauta correctamente SOBRE la luna
+✅ Eliminado COMPLETAMENTE el temblor de pantalla
+   - Shake solo durante impacto (~0.5s)
+   - Reset automático al iniciar juego
+   - Juego principal SIN temblor
+✅ Animaciones suaves y profesionales
+✅ Transición fluida entre intro y juego
+✅ Pantalla estable en el primer turno
+
+══════════════════════════════════════════════════════════════
+❌ SOLUCIÓN DE PROBLEMAS
+══════════════════════════════════════════════════════════════
+
+ERROR: "No module named 'pygame'"
+SOLUCIÓN: pip install pygame
+
+ERROR: "python: command not found"
+SOLUCIÓN: Usa "py main.py" en lugar de "python main.py"
+
+ERROR: El juego no se ve bien
+SOLUCIÓN: Asegúrate de que la ventana sea de 1280x720 píxeles
+
+══════════════════════════════════════════════════════════════
+📚 MÁS INFORMACIÓN
+══════════════════════════════════════════════════════════════
+
+Ver COMO_EJECUTAR.md para instrucciones completas
+Ver FIXED_INTRO_VISUALS.md para detalles técnicos
+Ver README.md para documentación general
+
+══════════════════════════════════════════════════════════════
+
+                   ¡DISFRUTA DEL JUEGO! 🎮🚀
+
+══════════════════════════════════════════════════════════════

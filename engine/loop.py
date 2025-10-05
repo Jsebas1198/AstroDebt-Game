@@ -132,6 +132,10 @@ class GameLoop:
         Args:
             delta_time: Tiempo transcurrido desde el último frame (en segundos)
         """
+        # Actualizar renderer (para efectos como shake)
+        if self.renderer and hasattr(self.renderer, 'update'):
+            self.renderer.update(delta_time)
+        
         # Actualizar componentes UI
         if self.hud:
             self.hud.update(delta_time)
@@ -207,6 +211,11 @@ class GameLoop:
         if new_phase == "main_game":
             # Avanzar turno al entrar en fase principal
             self.game_state.advance_turn()
+            
+            # Resetear completamente el shake de la intro
+            if self.renderer and hasattr(self.renderer, 'reset_shake'):
+                self.renderer.reset_shake()
+                logger.info("Shake de intro reseteado")
     
     def _setup_event_subscriptions(self) -> None:
         """Configura las suscripciones a eventos"""
