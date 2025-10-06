@@ -96,7 +96,7 @@ class GameLoop:
                 self.narrator.show_narrative(intro_text)
         
         # Emitir evento de inicio
-        self.event_manager.emit_quick(EventType.PHASE_CHANGED, {"phase": "intro"})
+        self.event_manager.emit_quick(EventType.PHASE_CHANGED, {"phase": self.game_state.current_phase})
         
         self.running = True
         self.run()
@@ -650,11 +650,30 @@ class GameLoop:
             self.hud.add_notification("¡Rescata al marciano de los enemigos!", "info")
     
     def _restart_game(self) -> None:
-        """Reinicia el juego"""
+        """Reinicia el juego completamente"""
         logger.info("Reiniciando juego...")
         
-        # Reiniciar estado del juego
-        self.game_state.__init__(self.game_state.config)
+        # Obtener oxígeno inicial de la configuración
+        initial_oxygen = 100.0
+        if self.config and 'gameplay' in self.config:
+            initial_oxygen = self.config['gameplay'].get('initial_oxygen', 100.0)
+        
+        # Reiniciar estado del juego manualmente (no usar __init__ en dataclass)
+        self.game_state.oxygen = initial_oxygen
+        self.game_state.max_oxygen = initial_oxygen
+        self.game_state.materials = 0
+        self.game_state.repair_progress = 0.0
+        self.game_state.turn_number = 0
+        self.game_state.current_phase = "intro"
+        self.game_state.game_over = False
+        self.game_state.victory = False
+        self.game_state.game_over_reason = ""
+        self.game_state.prestamista_shown = False
+        
+        # Limpiar préstamos activos si existen
+        if self.game_state.loan_manager:
+            self.game_state.loan_manager.active_loans.clear()
+            logger.info("Préstamos activos limpiados")
         
         # Resetear contadores de minijuegos (para volver a mostrar tutorial)
         self.mining_attempts = 0
@@ -675,8 +694,12 @@ class GameLoop:
             self.narrator.current_dialogue = None
             self.narrator.dialogue_queue.clear()
         
-        # Volver a intro
-        self.change_phase("intro")
+        # Reiniciar música de fondo si está disponible
+        if self.audio_manager:
+            # Si la música no está sonando, reiniciarla
+            if not self.audio_manager.is_music_playing():
+                self.audio_manager.play_music(loops=-1, fade_ms=1000)
+                logger.info("Música reiniciada después de game over")
         
         # Mostrar narrativa inicial de nuevo
         if self.narrator:
@@ -688,5 +711,5 @@ class GameLoop:
             )
             self.narrator.show_narrative(intro_text)
         
-        logger.info("Juego reiniciado completamente")
+        logger.info(f"Juego reiniciado completamente - Oxígeno: {self.game_state.oxygen}, Fase: {self.game_state.current_phase}")
 

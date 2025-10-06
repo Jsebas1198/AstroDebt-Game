@@ -243,7 +243,7 @@ nave_varada/
   - Paneles informativos (inventario, deudas, reparación)
   - Notificaciones flotantes
   - Menú de acciones ([M] Minar, [R] Reparar, [O] Conseguir Oxígeno)
-  - **Modal de intercambio**: Vender materiales por oxígeno (2 materiales = 1 oxígeno)
+  - **Modal de intercambio**: Vender materiales por oxígeno (1 material = 5 oxígeno)
   - Botón visual "Conseguir Oxígeno" con estados
 - **Estado**: ✅ **Completamente implementado**
 - **Características especiales**:
@@ -861,7 +861,7 @@ python test_minigames.py
 
 - **Minar materiales**: 12-15 oxígeno (aleatorio)
 - **Reparar nave**: 12-15 oxígeno + 5-10 materiales (aleatorio)
-- **Intercambio**: 2 materiales = 1 oxígeno (fijo)
+- **Intercambio**: 1 material = 5 oxígeno (fijo)
 
 ### Recompensas de Minijuegos
 

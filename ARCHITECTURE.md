@@ -233,7 +233,7 @@ Módulo A                EventManager              Módulo B
   - Inventario y paneles informativos
   - Información de deudas activas
   - Notificaciones flotantes
-  - **Sistema de intercambio**: Modal para vender materiales por oxígeno (2 materiales = 1 oxígeno)
+  - **Sistema de intercambio**: Modal para vender materiales por oxígeno (1 material = 5 oxígeno)
   - Botón visual de "Conseguir Oxígeno" con validaciones inteligentes
 
 - **narrator.py**: Sistema narrativo
@@ -359,7 +359,7 @@ JUEGO PRINCIPAL (main_game) ◄─┐
   │                            │   - Wiring Puzzle
   │                            │
   ├─> [O] Conseguir oxígeno ───┼─> MODAL INTERCAMBIO
-  │   (2 materiales = 1 oxígeno)   (No consume turno)
+  │   (1 material = 5 oxígeno)   (No consume turno)
   │                            │
   ├─> Ver inventario [I]       │
   ├─> Ver deudas [D]           │
@@ -575,13 +575,13 @@ System Tests
 El jugador puede intercambiar materiales por oxígeno directamente desde el HUD:
 
 ```
-Tasa de cambio: 2 materiales = 1 oxígeno
+Tasa de cambio: 1 material = 5 oxígeno
 
 Restricciones:
-- Solo se puede vender en pares de materiales
 - No se puede exceder 100 de oxígeno
 - El slider se ajusta automáticamente al máximo vendible
 - Botón visual con estados (habilitado/deshabilitado)
+- Cálculo automático para no desperdiciar materiales
 ```
 
 **Flujo de intercambio:**
@@ -593,9 +593,9 @@ Restricciones:
 6. Materiales se consumen, oxígeno se añade
 
 **Validaciones inteligentes:**
-- Máximo vendible = `min(materiales_disponibles, (100 - oxígeno_actual) * 2)`
+- Máximo vendible = `min(materiales_disponibles, ceil((100 - oxígeno_actual) / 5))`
 - Ajuste automático si la cantidad excedería 100
-- Redondeo hacia abajo si se selecciona cantidad impar
+- Cálculo preciso para aprovechar al máximo los materiales
 
 ## 🎮 Minijuegos Detallados
 
@@ -662,7 +662,7 @@ Variables clave para balanceo del juego:
 - Recursos requeridos por componente: 5-10 materiales (aleatorio)
 - Dificultad y recompensas de minijuegos
 - Límites de almacenamiento de recursos
-- **Tasa de intercambio**: 2 materiales = 1 oxígeno (fijo)
+- **Tasa de intercambio**: 1 material = 5 oxígeno (fijo)
 
 Todas ajustables en `data/config.json` sin cambiar código.
 

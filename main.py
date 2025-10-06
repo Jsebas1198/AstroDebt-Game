@@ -145,8 +145,8 @@ def main():
     renderer.game_state = game_state
     
     # 🎉 MODO TESTING DE ANIMACIÓN DE VICTORIA
-    # Descomentar para probar la animación de victoria inmediatamente:
-    TEST_VICTORY_ANIMATION = False  # Cambiar a True para testear victoria inmediata
+    # Cambiar a True para probar la animación de victoria inmediatamente:
+    TEST_VICTORY_ANIMATION = False
     
     if TEST_VICTORY_ANIMATION:
         logger.info("🧪 MODO TESTING: Victoria automática activada")
@@ -158,6 +158,17 @@ def main():
         game_state.materials = 50
         game_state.oxygen = 75.0
         game_state.turn_number = 15
+    
+    # 👥 MODO TESTING DE PRESTAMISTAS
+    # Cambiar a True para mostrar las 3 imágenes de prestamistas en el fondo:
+    TEST_SHOW_LENDERS = False  # 
+    
+    if TEST_SHOW_LENDERS:
+        logger.info("🧪 MODO TESTING: Mostrando todas las imágenes de prestamistas en pantalla")
+        # Activar modo de visualización de prestamistas en el renderer
+        if renderer:
+            renderer.show_all_lenders_testing = True
+    
     game_loop.screen = screen
     
     try:

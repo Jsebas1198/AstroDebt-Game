@@ -75,6 +75,9 @@ class Renderer:
         self.lender_animation_time = 0.0
         self.lender_waiting_for_input = False  # Esperando que jugador presione continuar
         
+        # Modo testing: Mostrar todos los prestamistas
+        self.show_all_lenders_testing = False
+        
         # Referencias
         self.game_state = None
     
@@ -117,6 +120,10 @@ class Renderer:
         self.render_environment()
         # 2. Luego nave y jugador (sobre el terreno)
         self.render_ship()
+        
+        # Modo testing: Mostrar todos los prestamistas
+        if self.show_all_lenders_testing:
+            self.render_all_lenders_display()
         
         # Renderizar efectos
         self.render_effects()
@@ -464,21 +471,37 @@ class Renderer:
         title_color = (255, 100, 100)
         
         reason_text = {
-            "oxygen_depleted": "Te quedaste sin oxígeno.",
+            "oxygen_depleted": "¡Te quedaste sin oxígeno!",
             "debt_overwhelming": "Las deudas te abrumaron.",
             "unknown": "No pudiste completar la misión."
         }
         
         reason = reason_text.get(self.game_state.game_over_reason, reason_text["unknown"])
         
-        messages = [
-            reason,
-            f"Sobreviviste {self.game_state.turn_number} turnos.",
-            f"Progreso de reparación: {self.game_state.repair_progress:.0f}%",
-            "",
-            "Moraleja: Los préstamos pueden ayudar,",
-            "pero deben manejarse con cuidado."
-        ]
+        # Mensajes específicos según la razón
+        if self.game_state.game_over_reason == "oxygen_depleted":
+            messages = [
+                reason,
+                "",
+                "💀 Sin oxígeno no hay vida...",
+                "",
+                f"Sobreviviste {self.game_state.turn_number} turnos.",
+                f"Progreso de reparación: {self.game_state.repair_progress:.0f}%",
+                f"Materiales recolectados: {self.game_state.materials}",
+                "",
+                "💡 Consejo: Gestiona tu oxígeno cuidadosamente.",
+                "Puedes intercambiar materiales por oxígeno.",
+                "¡Los préstamos pueden salvarte en emergencias!"
+            ]
+        else:
+            messages = [
+                reason,
+                f"Sobreviviste {self.game_state.turn_number} turnos.",
+                f"Progreso de reparación: {self.game_state.repair_progress:.0f}%",
+                "",
+                "Moraleja: Los préstamos pueden ayudar,",
+                "pero deben manejarse con cuidado."
+            ]
         
         # Renderizar título
         title_surface = title_font.render(title, True, title_color)
@@ -489,14 +512,22 @@ class Renderer:
         
         # Renderizar mensajes
         y = 250
-        for message in messages:
+        for i, message in enumerate(messages):
             if message:  # Skip empty lines
-                msg_surface = text_font.render(message, True, (255, 255, 255))
+                # Color especial para el primer mensaje (razón de game over)
+                if i == 0 and self.game_state.game_over_reason == "oxygen_depleted":
+                    color = (255, 80, 80)  # Rojo brillante para oxígeno agotado
+                    font_to_use = title_font if i == 0 else text_font
+                else:
+                    color = (255, 255, 255)
+                    font_to_use = text_font
+                
+                msg_surface = font_to_use.render(message, True, color)
                 msg_rect = msg_surface.get_rect()
                 msg_rect.centerx = self.screen_width // 2
                 msg_rect.centery = y
                 self.screen.blit(msg_surface, msg_rect)
-            y += 40
+            y += 40 if i < 3 else 35  # Espaciado ajustado
         
         # Opción de reiniciar
         restart_text = "[ESPACIO] Jugar de nuevo    [ESC] Salir"
@@ -918,6 +949,73 @@ class Renderer:
             
             self.screen.blit(bg_surface, bg_rect)
             self.screen.blit(continue_surface, continue_rect)
+    
+    def render_all_lenders_display(self) -> None:
+        """Renderiza los tres prestamistas en pantalla para testing"""
+        # Definir los tres prestamistas y sus assets
+        lenders = [
+            {'type': 'zorvax', 'asset': 'zorvax_alien', 'name': 'ZORVAX'},
+            {'type': 'ktarr', 'asset': 'ktarr_alien', 'name': "K'TARR"},
+            {'type': 'consorcio', 'asset': 'alien', 'name': 'CONSORCIO'}
+        ]
+        
+        # Calcular posiciones (distribuir horizontalmente)
+        spacing = self.screen_width // 4
+        base_y = self.screen_height // 2 + 100  # Más abajo para no obstruir la nave
+        
+        for i, lender in enumerate(lenders):
+            asset_key = lender['asset']
+            
+            if asset_key not in self.assets:
+                logger.warning(f"Asset {asset_key} no encontrado")
+                continue
+            
+            # Obtener imagen
+            lender_image = self.assets[asset_key]
+            
+            # Posición horizontal (izquierda, centro, derecha)
+            lender_x = spacing * (i + 1)
+            lender_y = base_y
+            
+            # Renderizar imagen
+            rect = lender_image.get_rect()
+            rect.center = (lender_x, lender_y)
+            
+            # Fondo semi-transparente
+            overlay = pygame.Surface((rect.width + 20, rect.height + 20))
+            overlay.fill((30, 30, 50))
+            overlay.set_alpha(150)
+            overlay_rect = overlay.get_rect()
+            overlay_rect.center = rect.center
+            self.game_layer.blit(overlay, overlay_rect)
+            
+            # Dibujar prestamista
+            self.game_layer.blit(lender_image, rect)
+            
+            # Texto identificador
+            font = pygame.font.Font(None, 32)
+            name_surface = font.render(lender['name'], True, (255, 215, 0))
+            name_rect = name_surface.get_rect()
+            name_rect.centerx = rect.centerx
+            name_rect.top = rect.bottom + 10
+            self.game_layer.blit(name_surface, name_rect)
+        
+        # Texto superior indicando que es modo testing
+        font_title = pygame.font.Font(None, 40)
+        title_surface = font_title.render("🧪 MODO TESTING - PRESTAMISTAS", True, (255, 100, 100))
+        title_rect = title_surface.get_rect()
+        title_rect.centerx = self.screen_width // 2
+        title_rect.top = 30
+        
+        # Fondo para el título
+        bg = pygame.Surface((title_rect.width + 40, title_rect.height + 20))
+        bg.fill((0, 0, 0))
+        bg.set_alpha(200)
+        bg_rect = bg.get_rect()
+        bg_rect.center = title_rect.center
+        
+        self.game_layer.blit(bg, bg_rect)
+        self.game_layer.blit(title_surface, title_rect)
     
     def reset_animations(self) -> None:
         """Resetea todas las animaciones del renderer"""

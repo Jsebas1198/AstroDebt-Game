@@ -702,23 +702,19 @@ class HUD:
             self.add_notification("Cantidad no válida ❌", "error")
             return
         
-        # Realizar el intercambio: 2 materiales = 1 oxígeno
+        # Realizar el intercambio: 1 material = 5 oxígeno
         materials_to_sell = self.exchange_amount
         
-        # Calcular oxígeno que se ganaría (siempre números enteros)
-        # Solo se puede vender en pares de materiales
-        if materials_to_sell % 2 != 0:
-            # Si es impar, redondear hacia abajo
-            materials_to_sell = materials_to_sell - 1
-        
-        oxygen_gained = materials_to_sell // 2  # División entera
+        # Calcular oxígeno que se ganaría (1 material = 5 oxígeno)
+        oxygen_gained = materials_to_sell * 5
         
         # Verificar que no se exceda el máximo de oxígeno
         oxygen_available = 100 - self.game_state.oxygen
         if oxygen_gained > oxygen_available:
             # Ajustar la cantidad para no exceder 100
             oxygen_gained = int(oxygen_available)
-            materials_to_sell = oxygen_gained * 2
+            # Calcular cuántos materiales se necesitan realmente
+            materials_to_sell = (oxygen_gained + 4) // 5  # Redondear hacia arriba
             
             if materials_to_sell <= 0:
                 self.add_notification("Tu oxígeno ya está al 100% ✅", "info")
@@ -813,8 +809,8 @@ class HUD:
         oxygen_needed = 100 - self.game_state.oxygen
         
         # Calcular cuántos materiales se necesitan para ese oxígeno
-        # 2 materiales = 1 oxígeno, entonces materiales = oxígeno * 2
-        max_materials_for_oxygen = int(oxygen_needed) * 2
+        # 1 material = 5 oxígeno, entonces materiales = oxígeno / 5 (redondeado hacia arriba)
+        max_materials_for_oxygen = (int(oxygen_needed) + 4) // 5
         
         # El máximo es el menor entre los materiales disponibles y los necesarios
         return min(self.game_state.materials, max_materials_for_oxygen)
@@ -980,12 +976,9 @@ class HUD:
         self.screen.blit(amount_surface, amount_rect)
         
         # Oxígeno a recibir (siempre números enteros)
-        # Ajustar si es impar (solo se vende en pares)
         materials_actual = self.exchange_amount
-        if materials_actual % 2 != 0:
-            materials_actual = materials_actual - 1
         
-        oxygen_to_receive = materials_actual // 2  # División entera
+        oxygen_to_receive = materials_actual * 5  # 1 material = 5 oxígeno
         
         # Verificar límite de oxígeno
         oxygen_available = 100 - self.game_state.oxygen
@@ -1000,7 +993,7 @@ class HUD:
         self.screen.blit(oxygen_surface, oxygen_rect)
         
         # Tasa de cambio
-        rate_text = "(Tasa: 2 materiales = 1 oxígeno)"
+        rate_text = "(Tasa: 1 material = 5 oxígeno)"
         rate_surface = self.small_font.render(rate_text, True, (180, 180, 180))
         rate_rect = rate_surface.get_rect()
         rate_rect.centerx = modal_rect.centerx
